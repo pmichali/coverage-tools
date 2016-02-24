@@ -1,5 +1,6 @@
 import collections
 import pytest
+import StringIO
 import whodunit
 
 
@@ -305,3 +306,68 @@ def test_report_by_date():
     sorted_commits = whodunit.sort_by_date(commits)
     assert len(sorted_commits) == 3
     assert sorted_commits == [commit2, commit1, commit3]
+
+
+def test_build_range_of_one_line():
+    assert whodunit.make_ranges([1]) == [(1, 1)]
+
+
+def test_build_one_range():
+    assert whodunit.make_ranges([10, 11, 12]) == [(10, 12)]
+
+
+def test_build_multiple_ranges():
+    assert whodunit.make_ranges([1, 2, 4, 5, 7]) == [(1, 2), (4, 5), (7, 7)]
+
+
+def test_coverage_ok():
+    """No file to process, as coverage is 100%."""
+    coverage_fragment = """
+<title>Coverage for some/path/to/some_file.py: 100%</title>
+
+<p id="n203" class="stm run hide_run"><a href="#n203">203</a></p>
+<p id="n204" class="stm run hide_run"><a href="#n204">204</a></p>
+<p id="n205" class="pln"><a href="#n205">205</a></p>
+
+            </td>
+            <td class="text">
+"""
+    result = whodunit.determine_coverage(coverage_fragment)
+    assert result is None
+
+
+def test_coverage_lacking_for_one_line():
+    coverage_fragment = """
+<title>Coverage for some/path/to/some_file.py: 82%</title>
+
+<p id="n188" class="pln"><a href="#n188">188</a></p>
+<p id="n189" class="stm mis"><a href="#n189">189</a></p>
+<p id="n190" class="pln"><a href="#n190">190</a></p>
+
+            </td>
+            <td class="text">
+"""
+    result = whodunit.determine_coverage(coverage_fragment)
+    assert result == ("some/path/to/some_file.py", [(189, 189)])
+
+
+def test_coverage_lacking_for_a_range_of_lines():
+    """One range of lines that are missing coverage or partial covered."""
+    coverage_fragment = """
+<title>Coverage for some/path/to/some_file.py: 82%</title>
+
+<p id="n160" class="pln"><a href="#n160">160</a></p>
+<p id="n161" class="stm mis"><a href="#n161">161</a></p>
+<p id="n162" class="stm mis"><a href="#n162">162</a></p>
+<p id="n163" class="stm mis"><a href="#n163">163</a></p>
+
+            </td>
+            <td class="text">
+"""
+    result = whodunit.determine_coverage(coverage_fragment)
+    assert result == ("some/path/to/some_file.py", [(161, 163)])
+
+
+def test_coverage_lacking_for_several_ranges():
+    pass
+

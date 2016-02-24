@@ -44,6 +44,10 @@ uuid_line_re = re.compile(r'([a-f0-9]{40})\s')
 code_line_re = re.compile(r'\s')
 attr_line_re = re.compile(r'(\S+)\s(.+)')
 
+title_re = re.compile(r'\s*<title>Coverage for ([^:]+):\s+(\d+)%<\/title>')
+source_re = re.compile(r'<p id="n(\d+)" class="stm (mis|par)')
+end_re = re.compile(r'\s*<td class="text">')
+
 
 class BadRecordException(Exception):
     pass
@@ -129,16 +133,61 @@ class BlameRecord(object):
                                     self.author_mail, self.line_count)
 
 
+def make_ranges(lines):
+    """Convert list of lines into list of line range tuples.
+
+    Only will be called if there is one or more entries in the list.
+    """
+    start_line = last_line = lines.pop(0)
+    ranges = []
+    for line in lines:
+        if line == (last_line + 1):
+            last_line = line
+        else:
+            ranges.append((start_line, last_line))
+            start_line = line
+            last_line = line
+    ranges.append((start_line, last_line))
+    return ranges
+
+
+def determine_coverage(coverage_file):
+    """Scan the summary section of report looking for coverage data.
+
+    Will see class with "stm mis" (missing coverage), or "stm par" (partial
+    coverage), and can extract line number.
+    """
+    lines = []
+    source_file = 'ERROR'
+    for line in coverage_file.splitlines():
+        m = title_re.match(line)
+        if m:
+            if m.group(2) == '100':
+                return
+            source_file = m.group(1)
+            continue
+        m = source_re.match(line)
+        if m:
+            lines.append(int(m.group(1)))
+            continue
+        if end_re.match(line):
+            break
+    line_ranges = make_ranges(lines)
+    return (source_file, line_ranges)
+
+
+def find_partial_coverage_modules(top):
+    for path, dirlist, filelist in os.walk(top):
+        for name in fnmatch.filter(filelist, "*.html"):
+            with open(path, name) as cover_file:
+                result = determine_coverage(cover_file)
+                if result:
+                    yield result[0], result[1]
+
+
 def find_modules(top):
     for path, dirlist, filelist in os.walk(top):
         for name in fnmatch.filter(filelist, "*.py"):
-            yield os.path.join(path, name)
-
-
-def find_coverage_modules(top):
-    # Check filename part is 'cover'?
-    for path, dirlist, filelist in os.walk(top):
-        for name in fnmatch.filter(filelist, "*.html"):
             yield os.path.join(path, name)
 
 
