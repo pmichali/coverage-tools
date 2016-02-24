@@ -49,10 +49,6 @@ class BadRecordException(Exception):
     pass
 
 
-class UnableToCollectBlameInfo(Exception):
-    pass
-
-
 class BlameRecord(object):
 
     def __init__(self, uuid):
@@ -139,6 +135,13 @@ def find_modules(top):
             yield os.path.join(path, name)
 
 
+def find_coverage_modules(top):
+    # Check filename part is 'cover'?
+    for path, dirlist, filelist in os.walk(top):
+        for name in fnmatch.filter(filelist, "*.html"):
+            yield os.path.join(path, name)
+
+
 def collect_blame_info(filenames):
     old_area = None
     for filename in filenames:
@@ -146,15 +149,13 @@ def collect_blame_info(filenames):
         if area != old_area:
             print "\n\n%s/\n" % area
             old_area = area
-        
         print name,
         os.chdir(area)
         p = subprocess.Popen(['git', 'blame', '--line-porcelain', name],
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         if err:
-            raise UnableToCollectBlameInfo("Area %(area)s, file %(file)s",
-                                           {'area': area, 'file': name})
+            print " <<< Unable to collect 'git blame' info"
         else:
             yield out
 
