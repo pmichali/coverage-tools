@@ -6,11 +6,11 @@
 # of lines for a commiter, per commit.
 #
 # Usage:
-#    whodunit.py [-h] [-d] [-l] [-m] [-s {date,size}] file-or-directory
+#    whodunit.py [-h] [-d] [-v] [-m] [-s {date,size}] file-or-directory
 # Where:
 # -h, --help            show this help message and exit.
-# -d, --details         Show details in addition to summary.
-# -l, --long            Show additional info on each commit.
+# -d, --details         Show individual commit/user details.
+# -v, --verbose         Show additional info on each commit.
 # -m, --max             Maximum number of users/commits to show. Default=5,
 #                       use 0 for all.
 # -s {date,size}, --sort {date,size} Sort order for report. Default=date.
@@ -27,8 +27,8 @@
 # most recent date will be shown first, along with the number of lines for
 # that commit.
 #
-# If the --long option is selected, then the commiter, with date/time is
-# also displayed.
+# If the --verbose option is selected, then the author's email address,
+# commiter's name, and commiter's email are also shown.
 
 import argparse
 import datetime
@@ -109,13 +109,13 @@ class BlameRecord(object):
         if not hasattr(self, 'committer_mail'):
             raise BadRecordException("Missing committer email")
 
-    def show(self, long_output):
+    def show(self, verbose):
         author = self.author
         author_width = 25
         committer = ''
         commit_date = self.date_to_str(self.committer_time, self.committer_tz,
-                                       long_output)
-        if long_output:
+                                       verbose)
+        if verbose:
             author += " %s" % self.author_mail
             author_width = 50
             committer = " %s %s" % (self.committer, self.committer_mail)
@@ -222,22 +222,7 @@ def sort_by_date(commits):
                   key=lambda x: x.committer_time, reverse=True)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description='Determine ownership for file or tree of files.')
-    parser.add_argument('-d', '--details', action='store_true',
-                        help='Show details in addition to summary.')
-    parser.add_argument('-l', '--long', action='store_true',
-                        dest='long_output',
-                        help='Show additional info on each commit.')
-    parser.add_argument('-m', '--max', action='store', type=int, default=5,
-                        help='Maximum number of users/commits to show. '
-                        'Default=5, use 0 for all.')
-    parser.add_argument('-s', '--sort', dest='sort_by', action='store',
-                        choices={'date', 'size'}, default='date',
-                        help='Sort order for report. Default=date.')
-    parser.add_argument(dest='root', metavar='file-or-dir')
-    args = parser.parse_args()
+def main(args):
 
     if os.path.isdir(args.root):
         files = find_modules(args.root)
@@ -257,4 +242,22 @@ if __name__ == "__main__":
         print "(%s)" % ','.join(top_n)
         if args.details:
             for commit in sorted_commits[:limit]:
-                print commit.show(args.long_output)
+                print commit.show(args.verbose)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description='Determine ownership for file or tree of files.')
+    parser.add_argument('-d', '--details', action='store_true',
+                        help='Show details in addition to summary.')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        dest='verbose',
+                        help='Show additional info on each commit.')
+    parser.add_argument('-m', '--max', action='store', type=int, default=5,
+                        help='Maximum number of users/commits to show. '
+                        'Default=5, use 0 for all.')
+    parser.add_argument('-s', '--sort', dest='sort_by', action='store',
+                        choices={'date', 'size'}, default='date',
+                        help='Sort order for report. Default=date.')
+    parser.add_argument(dest='root', metavar='file-or-dir')
+    main(parser.parse_args())
