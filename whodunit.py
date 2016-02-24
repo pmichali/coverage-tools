@@ -6,24 +6,29 @@
 # of lines for a commiter, per commit.
 #
 # Usage:
-# whodunit {--when | --size} [--detail] [--max=#] {file | directory-root}
-#
-# -w, --when     Will list commiters by date (most recent commit first)
-# -s, --size     Will list commiters by size of (all of) thier changes
-#                with the committer having the largest lines shown first.
-# -d, --details  Show detailed info for each file processed
-# -m, --max      How many of the top entries to display (default 5)
+#    whodunit.py [-h] [-d] [-l] [-m] [-s {date,size}] file-or-directory
+# Where:
+# -h, --help            show this help message and exit.
+# -d, --details         Show details in addition to summary.
+# -l, --long            Show additional info on each commit.
+# -m, --max             Maximum number of users/commits to show. Default=5,
+#                       use 0 for all.
+# -s {date,size}, --sort {date,size} Sort order for report. Default=date.
 #
 # Output will have file path and name, and then committers, in priority order
 # as selected by the options (date/size).
 #
 # If the --details option is chosen, subsequent lines will show details for
-# each committer. In the case of --size, the committer with the most lines
-# in all commits, will be shown first, along with the total line count.
+# each committer. In the case of sorting by size, the committer with the
+# most lines in all commits, will be shown first, along with the total line
+# count.
 #
-# In the case of --when, the committer with the commit having the most recent
-# date will be shown first, along with the number of lines for that commit.
+# In the case of sorting by date, the committer with the commit having the
+# most recent date will be shown first, along with the number of lines for
+# that commit.
 #
+# If the --long option is selected, then the commiter, with date/time is
+# also displayed.
 
 import argparse
 import datetime
@@ -63,21 +68,17 @@ class BlameRecord(object):
             value = int(value)
         setattr(self, attr, value)
 
-    @property
-    def who(self):
-        if self.author_mail:
-            return self.author_mail
-        else:
-            return self.author
-
     @staticmethod
-    def date_to_str(time_stamp, time_zone):
+    def date_to_str(time_stamp, time_zone, verbose=True):
         date_time = datetime.datetime.utcfromtimestamp(time_stamp)
         offset_hrs = int(time_zone)/100
         offset_mins = int(time_zone[-2])
         date_time += datetime.timedelta(hours=offset_hrs,
                                         minutes=offset_mins)
-        return date_time.strftime('%Y-%m-%d %H:%M:%S ') + time_zone
+        if verbose:
+            return date_time.strftime('%Y-%m-%d %H:%M:%S ') + time_zone
+        else:
+            return date_time.strftime('%Y-%m-%d')
 
     @property
     def date(self):
@@ -108,8 +109,21 @@ class BlameRecord(object):
         if not hasattr(self, 'committer_mail'):
             raise BadRecordException("Missing committer email")
 
+    def show(self, long_output):
+        author = self.author
+        author_width = 25
+        committer = ''
+        commit_date = self.date_to_str(self.committer_time, self.committer_tz,
+                                       long_output)
+        if long_output:
+            author += " %s" % self.author_mail
+            author_width = 50
+            committer = " %s %s" % (self.committer, self.committer_mail)
+        return "    {} {:5d} {:{}s} {}{}".format(
+            self.uuid[:8], self.line_count, author, author_width,
+            commit_date, committer)
+
     def __str__(self):
-        # TODO(pcm): Change formatting
         return "{0} {1:5d} {2} {3} {4}".format(self.uuid[:8], self.line_count,
                                                self.author, self.author_mail,
                                                self.date)
@@ -126,9 +140,14 @@ def find_modules(top):
 
 
 def collect_blame_info(filenames):
+    old_area = None
     for filename in filenames:
         area, name = os.path.split(filename)
-        print "Processing", name
+        if area != old_area:
+            print "\n\n%s/\n" % area
+            old_area = area
+        
+        print name,
         os.chdir(area)
         p = subprocess.Popen(['git', 'blame', '--line-porcelain', name],
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -204,27 +223,38 @@ def sort_by_date(commits):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Determine change ownership')
+    parser = argparse.ArgumentParser(
+        description='Determine ownership for file or tree of files.')
     parser.add_argument('-d', '--details', action='store_true',
-                        help='Show details in addition to summary')
+                        help='Show details in addition to summary.')
     parser.add_argument('-l', '--long', action='store_true',
-                        help='Show additional info on each commit')
+                        dest='long_output',
+                        help='Show additional info on each commit.')
+    parser.add_argument('-m', '--max', action='store', type=int, default=5,
+                        help='Maximum number of users/commits to show. '
+                        'Default=5, use 0 for all.')
     parser.add_argument('-s', '--sort', dest='sort_by', action='store',
                         choices={'date', 'size'}, default='date',
-                        help='Sort order for report')
+                        help='Sort order for report. Default=date.')
     parser.add_argument(dest='root', metavar='file-or-dir')
     args = parser.parse_args()
-"""
-    files = find_modules("/opt/stack/networking-cisco/networking_cisco"
-                         "/plugins/ml2/drivers/cisco/nexus")
+
+    if os.path.isdir(args.root):
+        files = find_modules(args.root)
+    elif os.path.isfile(args.root):
+        files = iter([args.root])
+    else:
+        parser.error("Must specify a file or a directory to process")
     blame_infos = collect_blame_info(files)
     for info in blame_infos:
         commits = parse_info_records(info)
-        sorted_commits = sort_by_size(commits)
-        for commit in sorted_commits:
-            print commit
-
-        sorted_commits = sort_by_date(commits)
-        for commit in sorted_commits:
-            print commit
-"""
+        if args.sort_by == 'size':
+            sorted_commits = sort_by_size(commits)
+        else:
+            sorted_commits = sort_by_date(commits)
+        limit = None if args.max == 0 else args.max
+        top_n = [c.author for c in sorted_commits[:limit]]
+        print "(%s)" % ','.join(top_n)
+        if args.details:
+            for commit in sorted_commits[:limit]:
+                print commit.show(args.long_output)
