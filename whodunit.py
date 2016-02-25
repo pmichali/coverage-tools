@@ -49,7 +49,7 @@ import re
 import subprocess
 
 
-uuid_line_re = re.compile(r'([a-f0-9]{40})\s')
+uuid_line_re = re.compile(r'([a-f0-9]{40})\s+\d+\s+(\d+)')
 code_line_re = re.compile(r'\s')
 attr_line_re = re.compile(r'(\S+)\s(.+)')
 
@@ -68,8 +68,9 @@ class SourceNotFound(Exception):
 
 class BlameRecord(object):
 
-    def __init__(self, uuid):
+    def __init__(self, uuid, line_number):
         self.uuid = uuid
+        self.line_number = line_number
         self.line_count = 1
 
     def store_attribute(self, key, value):
@@ -265,8 +266,9 @@ def parse_info_records(lines):
         m = uuid_line_re.match(line)
         if m:
             uuid = m.group(1)
+            line_number = int(m.group(2))
             if uuid not in commits:
-                record = BlameRecord(uuid)
+                record = BlameRecord(uuid, line_number)
                 in_new_record = True
             else:
                 commits[uuid].line_count += 1

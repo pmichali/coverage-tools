@@ -64,7 +64,7 @@ def test_filter_multiple_ranges():
 
 
 def test_build_valid_record():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 1)
     record.store_attribute('author', 'Me')
     record.store_attribute('author-mail', 'foo@bar.net')
     record.store_attribute('author-time', '1391791021')
@@ -77,14 +77,14 @@ def test_build_valid_record():
 
 
 def test_committer_date_formatting():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 5)
     record.store_attribute('committer-time', '1391791021')
     record.store_attribute('committer-tz', '-0500')
     assert record.date == '2014-02-07 11:37:01 -0500'
 
 
 def test_ignoring_blame_info():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 10)
     record.store_attribute('summary', 'do not store summary')
     assert not hasattr(record, 'summary')
     record.store_attribute('filename', 'do not store file info')
@@ -94,7 +94,7 @@ def test_ignoring_blame_info():
 
 
 def test_fail_record_missing_author():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 3)
     record.store_attribute('author-mail', 'foo@bar.net')
     record.store_attribute('author-time', '1391791021')
     record.store_attribute('author-tz', '-0500')
@@ -108,7 +108,7 @@ def test_fail_record_missing_author():
 
 
 def test_fail_record_missing_committer():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 5)
     record.store_attribute('author', 'Me')
     record.store_attribute('author-mail', 'foo@bar.net')
     record.store_attribute('author-time', '1391791021')
@@ -122,7 +122,7 @@ def test_fail_record_missing_committer():
 
 
 def test_fail_record_missing_author_time():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 2)
     record.store_attribute('author', 'Me')
     record.store_attribute('author-mail', 'foo@bar.net')
     record.store_attribute('author-tz', '-0500')
@@ -134,7 +134,7 @@ def test_fail_record_missing_author_time():
         record.validate()
     assert e.value.message == "Missing author time information"
 
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 3)
     record.store_attribute('author', 'Me')
     record.store_attribute('author-mail', 'foo@bar.net')
     record.store_attribute('author-time', '1391791021')
@@ -148,7 +148,7 @@ def test_fail_record_missing_author_time():
 
 
 def test_fail_record_missing_committer_time():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 8)
     record.store_attribute('author', 'Me')
     record.store_attribute('author-mail', 'foo@bar.net')
     record.store_attribute('author-time', '1391791021')
@@ -160,7 +160,7 @@ def test_fail_record_missing_committer_time():
         record.validate()
     assert e.value.message == "Missing committer time information"
 
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 9)
     record.store_attribute('author', 'Me')
     record.store_attribute('author-mail', 'foo@bar.net')
     record.store_attribute('author-time', '1391791021')
@@ -174,7 +174,7 @@ def test_fail_record_missing_committer_time():
 
 
 def test_fail_record_missing_author_email():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 1)
     record.store_attribute('author', 'Me')
     record.store_attribute('author-time', '1391791021')
     record.store_attribute('author-tz', '-0500')
@@ -188,7 +188,7 @@ def test_fail_record_missing_author_email():
 
 
 def test_fail_record_missing_committer_email():
-    record = whodunit.BlameRecord('some-uuid')
+    record = whodunit.BlameRecord('some-uuid', 1)
     record.store_attribute('author', 'Me')
     record.store_attribute('author-mail', 'foo@bar.net')
     record.store_attribute('author-time', '1391791021')
@@ -201,7 +201,7 @@ def test_fail_record_missing_committer_email():
     assert e.value.message == "Missing committer email"
 
 
-def test_fail_extract_blame_info_for_two_commits():
+def test_parsing_for_two_commits():
     blame_output = line_one + line_two
     commits = whodunit.parse_info_records(blame_output)
     assert len(commits) == 2
@@ -209,6 +209,7 @@ def test_fail_extract_blame_info_for_two_commits():
     assert uuid1 in commits
     record = commits[uuid1]
     assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
+    assert record.line_number == 1794
     assert record.line_count == 1
     assert record.author == "Carol Bouchard"
     assert record.date == "2016-02-01 09:08:42 -0500"
@@ -217,13 +218,14 @@ def test_fail_extract_blame_info_for_two_commits():
     assert uuid2 in commits
     record = commits[uuid2]
     assert record.uuid == "65491efbd9ea0843c00cb50ff4c89211862924de"
+    assert record.line_number == 1795
     assert record.line_count == 1
     assert record.author == "Rich Curran"
     assert record.date == "2015-03-27 15:08:17 +0000"
     assert record.author_mail == "<rcurran@cisco.com>"
 
 
-def test_two_records_same_commit():
+def test_parse_two_records_same_commit():
     blame_output = line_one + line_three
     commits = whodunit.parse_info_records(blame_output)
     assert len(commits) == 1
@@ -238,7 +240,7 @@ def test_two_records_same_commit():
 
 
 def create_commit(info):
-    commit = whodunit.BlameRecord(info['uuid'])
+    commit = whodunit.BlameRecord(info['uuid'], 5)
     commit.line_count = info['lines'] if 'lines' in info else 10
     commit.author = info['author'] if 'author' in info else 'Joe Dirt'
     commit.author_mail = (info['author_mail'] if 'author_mail' in info
