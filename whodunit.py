@@ -31,10 +31,11 @@
 # If the --verbose option is selected, then the author's email address,
 # commiter's name, and commiter's email are also shown.
 #
-# In the case of sorting by date, you must specify a directory with coverage
-# HTML files to process. The output will show the owners of the lines in
-# modules in the report that are flagged as missing coverage or partial
-# coverage. The line number, committer, and date will be shown.
+# In the case of sorting by cover, you must specify a directory (at the root
+# of the project tree) with coverage HTML files to process. The output will
+# show the owners of the lines in modules in the report that are flagged
+# as missing coverage or partial coverage. The line number, committer, and
+# date will be shown.
 
 from __future__ import print_function
 
@@ -164,12 +165,12 @@ def make_ranges(lines):
     return ranges
 
 
-def determine_coverage(coverage_file, root):
+def determine_coverage(coverage_file):
     """Scan the summary section of report looking for coverage data.
 
     Will see CSS class with "stm mis" (missing coverage), or "stm par"
     (partial coverage), and can extract line number. Will get file name
-    from title tag. Note: cover directory must be within tree (at top).
+    from title tag.
     """
     lines = []
     source_file = 'ERROR'
@@ -178,12 +179,7 @@ def determine_coverage(coverage_file, root):
         if m:
             if m.group(2) == '100':
                 return ('', [])
-            source_file = os.path.abspath(os.path.join(root, '..', m.group(1)))
-            if not os.path.isfile(source_file):
-                raise SourceNotFound("Source file %(file)s not found "
-                                     "at %(area)s" %
-                                     {'file': os.path.basename(source_file),
-                                      'area': os.path.dirname(source_file)})
+            source_file = m.group(1)
             continue
         m = source_re.match(line)
         if m:
@@ -196,16 +192,29 @@ def determine_coverage(coverage_file, root):
 
 
 def find_partial_coverage_modules(top):
-    """Look at coverage report files for lines of interest."""
+    """Look at coverage report files for lines of interest.
+
+    Will verify that the source file is within the project tree, relative
+    to the coverage directory.
+    """
     root = os.path.abspath(top)
     for path, dirlist, filelist in os.walk(top):
         for name in fnmatch.filter(filelist, "*.html"):
             if name == 'index.html':
                 continue
             with open(os.path.join(path, name)) as cover_file:
-                source_file, line_ranges = determine_coverage(cover_file, root)
-                if source_file:
-                    yield (source_file, line_ranges)
+                source_file, line_ranges = determine_coverage(cover_file)
+            if not source_file:
+                continue
+            source_file = os.path.abspath(
+                os.path.join(root, '..', source_file))
+            if os.path.isfile(source_file):
+                yield (source_file, line_ranges)
+            else:
+                raise SourceNotFound("Source file %(file)s not found "
+                                     "at %(area)s" %
+                                     {'file': os.path.basename(source_file),
+                                      'area': os.path.dirname(source_file)})
 
 
 def is_git_file(path, name):
