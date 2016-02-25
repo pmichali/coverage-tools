@@ -205,18 +205,14 @@ def test_parsing_for_two_commits():
     blame_output = line_one + line_two
     commits = whodunit.parse_info_records(blame_output)
     assert len(commits) == 2
-    uuid1 = "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
-    assert uuid1 in commits
-    record = commits[uuid1]
+    record = commits[0]
     assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
     assert record.line_number == 1794
     assert record.line_count == 1
     assert record.author == "Carol Bouchard"
     assert record.date == "2016-02-01 09:08:42 -0500"
     assert record.author_mail == "<caboucha@cisco.com>"
-    uuid2 = "65491efbd9ea0843c00cb50ff4c89211862924de"
-    assert uuid2 in commits
-    record = commits[uuid2]
+    record = commits[1]
     assert record.uuid == "65491efbd9ea0843c00cb50ff4c89211862924de"
     assert record.line_number == 1795
     assert record.line_count == 1
@@ -229,9 +225,7 @@ def test_parse_two_records_same_commit():
     blame_output = line_one + line_three
     commits = whodunit.parse_info_records(blame_output)
     assert len(commits) == 1
-    uuid1 = "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
-    assert uuid1 in commits
-    record = commits[uuid1]
+    record = commits[0]
     assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
     assert record.line_count == 2
     assert record.author == "Carol Bouchard"
@@ -239,9 +233,31 @@ def test_parse_two_records_same_commit():
     assert record.author_mail == "<caboucha@cisco.com>"
 
 
+def test_parse_not_aggregating_two_records_same_commit():
+    blame_output = line_one + line_three
+    commits = whodunit.parse_info_records(blame_output, aggregate=False)
+    assert len(commits) == 2
+    record = commits[0]
+    assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
+    assert record.line_number == 1794
+    assert record.line_count == 1
+    assert record.author == "Carol Bouchard"
+    assert record.date == "2016-02-01 09:08:42 -0500"
+    assert record.author_mail == "<caboucha@cisco.com>"
+    record = commits[1]
+    assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
+    assert record.line_number == 28
+    assert record.line_count == 1
+    assert record.author == "Carol Bouchard"
+    assert record.date == "2016-02-01 09:08:42 -0500"
+    assert record.author_mail == "<caboucha@cisco.com>"
+
+
 def create_commit(info):
+    """Helper to create a dummy commit record."""
     commit = whodunit.BlameRecord(info['uuid'], 5)
     commit.line_count = info['lines'] if 'lines' in info else 10
+    commit.line_number = info['line_number'] if 'line_number' in info else 1
     commit.author = info['author'] if 'author' in info else 'Joe Dirt'
     commit.author_mail = (info['author_mail'] if 'author_mail' in info
                           else 'joe@dirt.com')
@@ -287,10 +303,8 @@ def test_report_by_size():
     commit2 = create_commit(info)
     info = {'uuid': 'uuid-3', 'lines': 60, 'committer_time': 1456193499}
     commit3 = create_commit(info)
-    commits = {'uuid-1': commit1, 'uuid-2': commit2, 'uuid-3': commit3}
 
-    sorted_commits = whodunit.sort_by_size(commits)
-
+    sorted_commits = whodunit.sort_by_size([commit1, commit2, commit3])
     assert len(sorted_commits) == 2
 
     first = sorted_commits[0]
@@ -317,8 +331,7 @@ def test_report_by_date():
     commit1 = create_commit({'uuid': 'uuid-1', 'committer_time': 1453922613})
     commit2 = create_commit({'uuid': 'uuid-2', 'committer_time': 1454335722})
     commit3 = create_commit({'uuid': 'uuid-3', 'committer_time': 1452193499})
-    commits = {'uuid1': commit1, 'uuid-2': commit2, 'uuid-3': commit3}
-    sorted_commits = whodunit.sort_by_date(commits)
+    sorted_commits = whodunit.sort_by_date([commit1, commit2, commit3])
     assert len(sorted_commits) == 3
     assert sorted_commits == [commit2, commit1, commit3]
 

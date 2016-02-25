@@ -259,30 +259,32 @@ def collect_blame_info(matches):
             yield out
 
 
-def parse_info_records(lines):
-    commits = {}
+def parse_info_records(lines, aggregate=True):
+    records = []
+    commits = set()
     in_new_record = False
     for line in lines.splitlines():
         m = uuid_line_re.match(line)
         if m:
             uuid = m.group(1)
             line_number = int(m.group(2))
-            if uuid not in commits:
+            if not aggregate or uuid not in commits:
                 record = BlameRecord(uuid, line_number)
+                commits.add(uuid)
                 in_new_record = True
             else:
-                commits[uuid].line_count += 1
+                record.line_count += 1
             continue
         if in_new_record:
             if code_line_re.match(line):
                 record.validate()
-                commits[uuid] = record
+                records.append(record)
                 in_new_record = False
                 continue
             m = attr_line_re.match(line)
             if m:
                 record.store_attribute(m.group(1), m.group(2))
-    return commits
+    return records
 
 
 def merge_user_commits(commits):
@@ -306,7 +308,7 @@ def merge_user_commits(commits):
 
 def sort_by_size(commits):
     # First sort commits by author email
-    sorted_commits = sorted(commits.values())
+    sorted_commits = sorted(commits)
     users = []
     # Group commits by author email, so they can be merged
     for _, group in itertools.groupby(sorted_commits,
@@ -319,8 +321,7 @@ def sort_by_size(commits):
 
 def sort_by_date(commits):
     """Sort commits by the committer date/time."""
-    return sorted(commits.values(),
-                  key=lambda x: x.committer_time, reverse=True)
+    return sorted(commits, key=lambda x: x.committer_time, reverse=True)
 
 
 def main(args):
