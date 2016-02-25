@@ -30,6 +30,8 @@
 # If the --verbose option is selected, then the author's email address,
 # commiter's name, and commiter's email are also shown.
 
+from __future__ import print_function
+
 import argparse
 import datetime
 import fnmatch
@@ -136,7 +138,8 @@ class BlameRecord(object):
 def make_ranges(lines):
     """Convert list of lines into list of line range tuples.
 
-    Only will be called if there is one or more entries in the list.
+    Only will be called if there is one or more entries in the list. Single
+    lines, will be coverted into tuple with same line.
     """
     start_line = last_line = lines.pop(0)
     ranges = []
@@ -163,7 +166,7 @@ def determine_coverage(coverage_file):
         m = title_re.match(line)
         if m:
             if m.group(2) == '100':
-                return
+                return ('', [])
             source_file = m.group(1)
             continue
         m = source_re.match(line)
@@ -177,34 +180,46 @@ def determine_coverage(coverage_file):
 
 
 def find_partial_coverage_modules(top):
+    """Look at coverage report files for lines of interest."""
     for path, dirlist, filelist in os.walk(top):
         for name in fnmatch.filter(filelist, "*.html"):
             with open(path, name) as cover_file:
-                result = determine_coverage(cover_file)
-                if result:
-                    yield result[0], result[1]
+                source_file, line_ranges = determine_coverage(cover_file)
+                if source_file:
+                    yield (source_file, line_ranges)
+
+
+def is_git_file(path, name):
+    """Determine if file is known by git."""
+    os.chdir(path)
+    p = subprocess.Popen(['git', 'ls-files', '--error-unmatch', name],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.wait()
+    return p.returncode == 0
 
 
 def find_modules(top):
+    """Look for git files in tree. Will handle all lines."""
     for path, dirlist, filelist in os.walk(top):
-        for name in fnmatch.filter(filelist, "*.py"):
-            yield os.path.join(path, name)
+        for name in fnmatch.filter(filelist, "*"):
+            if is_git_file(path, name):
+                yield (os.path.join(path, name), [])
 
 
-def collect_blame_info(filenames):
+def collect_blame_info(matches):
     old_area = None
-    for filename in filenames:
+    for filename, ranges in matches:
         area, name = os.path.split(filename)
         if area != old_area:
-            print "\n\n%s/\n" % area
+            print("\n\n%s/\n", area)
             old_area = area
-        print name,
+        print(name, end="")
         os.chdir(area)
         p = subprocess.Popen(['git', 'blame', '--line-porcelain', name],
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         if err:
-            print " <<< Unable to collect 'git blame' info"
+            print(" <<< Unable to collect 'git blame' info")
         else:
             yield out
 
@@ -275,12 +290,12 @@ def sort_by_date(commits):
 def main(args):
 
     if os.path.isdir(args.root):
-        files = find_modules(args.root)
+        matches = find_modules(args.root)
     elif os.path.isfile(args.root):
-        files = iter([args.root])
+        matches = iter(([args.root], []))
     else:
         parser.error("Must specify a file or a directory to process")
-    blame_infos = collect_blame_info(files)
+    blame_infos = collect_blame_info(matches)
     for info in blame_infos:
         commits = parse_info_records(info)
         if args.sort_by == 'size':
@@ -289,10 +304,10 @@ def main(args):
             sorted_commits = sort_by_date(commits)
         limit = None if args.max == 0 else args.max
         top_n = [c.author for c in sorted_commits[:limit]]
-        print "(%s)" % ','.join(top_n)
+        print("(%s)", ','.join(top_n))
         if args.details:
             for commit in sorted_commits[:limit]:
-                print commit.show(args.verbose)
+                print(commit.show(args.verbose))
 
 
 if __name__ == "__main__":

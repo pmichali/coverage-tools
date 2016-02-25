@@ -333,7 +333,7 @@ def test_coverage_ok():
             <td class="text">
 """
     result = whodunit.determine_coverage(coverage_fragment)
-    assert result is None
+    assert result == ('', [])
 
 
 def test_coverage_lacking_for_one_line():
@@ -369,5 +369,26 @@ def test_coverage_lacking_for_a_range_of_lines():
 
 
 def test_coverage_lacking_for_several_ranges():
-    pass
+    """Several ranges of missing/partial coverage."""
+    coverage_fragment = """
+<title>Coverage for some/path/to/some_file.py: 82%</title>
+    
+<p id="n103" class="stm run hide_run"><a href="#n103">103</a></p>
+<p id="n104" class="stm mis"><a href="#n104">104</a></p>
+<p id="n105" class="stm mis"><a href="#n105">105</a></p>
+<p id="n106" class="stm mis"><a href="#n106">106</a></p>
+<p id="n107" class="pln"><a href="#n107">107</a></p>
+<p id="n108" class="pln"><a href="#n108">108</a></p>
+<p id="n109" class="stm mis"><a href="#n109">109</a></p>
 
+<p id="n289" class="pln"><a href="#n289">289</a></p>
+<p id="n290" class="stm par run hide_run"><a href="#n290">290</a></p>
+<p id="n291" class="stm mis"><a href="#n291">291</a></p>
+<p id="n292" class="pln"><a href="#n292">292</a></p>
+
+            </td>
+            <td class="text">
+"""
+    result = whodunit.determine_coverage(coverage_fragment)
+    assert result == ("some/path/to/some_file.py",
+                      [(104, 106), (109, 109), (290, 291)])
