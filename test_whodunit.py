@@ -50,6 +50,19 @@ filename networking_cisco/plugins/ml2/drivers/cisco/nexus/mech_cisco_nexus.py
 """
 
 
+def test_no_filter_for_line_ranges():
+    assert whodunit.build_line_range_filter([]) == []
+
+
+def test_filter_one_range():
+    assert whodunit.build_line_range_filter([(5, 5)]) == ['-L 5,5']
+
+
+def test_filter_multiple_ranges():
+    result = whodunit.build_line_range_filter([(1, 3), (6, 7), (9, 9)])
+    assert result == ['-L 1,3', '-L 6,7', '-L 9,9']
+
+
 def test_build_valid_record():
     record = whodunit.BlameRecord('some-uuid')
     record.store_attribute('author', 'Me')
@@ -331,7 +344,7 @@ def test_coverage_ok():
 
             </td>
             <td class="text">
-"""
+""".splitlines()
     result = whodunit.determine_coverage(coverage_fragment)
     assert result == ('', [])
 
@@ -346,7 +359,7 @@ def test_coverage_lacking_for_one_line():
 
             </td>
             <td class="text">
-"""
+""".splitlines()
     result = whodunit.determine_coverage(coverage_fragment)
     assert result == ("some/path/to/some_file.py", [(189, 189)])
 
@@ -363,7 +376,7 @@ def test_coverage_lacking_for_a_range_of_lines():
 
             </td>
             <td class="text">
-"""
+""".splitlines()
     result = whodunit.determine_coverage(coverage_fragment)
     assert result == ("some/path/to/some_file.py", [(161, 163)])
 
@@ -372,7 +385,7 @@ def test_coverage_lacking_for_several_ranges():
     """Several ranges of missing/partial coverage."""
     coverage_fragment = """
 <title>Coverage for some/path/to/some_file.py: 82%</title>
-    
+
 <p id="n103" class="stm run hide_run"><a href="#n103">103</a></p>
 <p id="n104" class="stm mis"><a href="#n104">104</a></p>
 <p id="n105" class="stm mis"><a href="#n105">105</a></p>
@@ -388,7 +401,7 @@ def test_coverage_lacking_for_several_ranges():
 
             </td>
             <td class="text">
-"""
+""".splitlines()
     result = whodunit.determine_coverage(coverage_fragment)
     assert result == ("some/path/to/some_file.py",
                       [(104, 106), (109, 109), (290, 291)])

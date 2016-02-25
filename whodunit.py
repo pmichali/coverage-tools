@@ -13,7 +13,8 @@
 # -v, --verbose         Show additional info on each commit.
 # -m, --max             Maximum number of users/commits to show. Default=5,
 #                       use 0 for all.
-# -s {date,size}, --sort {date,size} Sort order for report. Default=date.
+# -s {date,size,cover}, --sort {date,size,cover} Sort order for report.
+#                       Default='date'.
 #
 # Output will have file path and name, and then committers, in priority order
 # as selected by the options (date/size).
@@ -29,6 +30,11 @@
 #
 # If the --verbose option is selected, then the author's email address,
 # commiter's name, and commiter's email are also shown.
+#
+# In the case of sorting by date, you must specify a directory with coverage
+# HTML files to process. The output will show the owners of the lines in
+# modules in the report that are flagged as missing coverage or partial
+# coverage. The line number, committer, and date will be shown.
 
 from __future__ import print_function
 
@@ -52,6 +58,10 @@ end_re = re.compile(r'\s*<td class="text">')
 
 
 class BadRecordException(Exception):
+    pass
+
+
+class SourceNotFound(Exception):
     pass
 
 
@@ -154,20 +164,26 @@ def make_ranges(lines):
     return ranges
 
 
-def determine_coverage(coverage_file):
+def determine_coverage(coverage_file, root):
     """Scan the summary section of report looking for coverage data.
 
-    Will see class with "stm mis" (missing coverage), or "stm par" (partial
-    coverage), and can extract line number.
+    Will see CSS class with "stm mis" (missing coverage), or "stm par"
+    (partial coverage), and can extract line number. Will get file name
+    from title tag. Note: cover directory must be within tree (at top).
     """
     lines = []
     source_file = 'ERROR'
-    for line in coverage_file.splitlines():
+    for line in coverage_file:
         m = title_re.match(line)
         if m:
             if m.group(2) == '100':
                 return ('', [])
-            source_file = m.group(1)
+            source_file = os.path.abspath(os.path.join(root, '..', m.group(1)))
+            if not os.path.isfile(source_file):
+                raise SourceNotFound("Source file %(file)s not found "
+                                     "at %(area)s" %
+                                     {'file': os.path.basename(source_file),
+                                      'area': os.path.dirname(source_file)})
             continue
         m = source_re.match(line)
         if m:
@@ -181,10 +197,13 @@ def determine_coverage(coverage_file):
 
 def find_partial_coverage_modules(top):
     """Look at coverage report files for lines of interest."""
+    root = os.path.abspath(top)
     for path, dirlist, filelist in os.walk(top):
         for name in fnmatch.filter(filelist, "*.html"):
-            with open(path, name) as cover_file:
-                source_file, line_ranges = determine_coverage(cover_file)
+            if name == 'index.html':
+                continue
+            with open(os.path.join(path, name)) as cover_file:
+                source_file, line_ranges = determine_coverage(cover_file, root)
                 if source_file:
                     yield (source_file, line_ranges)
 
@@ -206,20 +225,26 @@ def find_modules(top):
                 yield (os.path.join(path, name), [])
 
 
+def build_line_range_filter(ranges):
+    return ['-L %d,%d' % r for r in ranges]
+
+
 def collect_blame_info(matches):
     old_area = None
     for filename, ranges in matches:
         area, name = os.path.split(filename)
         if area != old_area:
-            print("\n\n%s/\n", area)
+            print("\n\n%s/\n" % area)
             old_area = area
-        print(name, end="")
+        print("%s " % name, end="")
+        filter = build_line_range_filter(ranges)
+        command = ['git', 'blame', '--line-porcelain'] + filter + [name]
         os.chdir(area)
-        p = subprocess.Popen(['git', 'blame', '--line-porcelain', name],
+        p = subprocess.Popen(command,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         if err:
-            print(" <<< Unable to collect 'git blame' info")
+            print(" <<<<<<<<<< Unable to collect 'git blame' info:", err)
         else:
             yield out
 
@@ -289,7 +314,11 @@ def sort_by_date(commits):
 
 def main(args):
 
-    if os.path.isdir(args.root):
+    if args.sort_by == 'cover':
+        if not os.path.isdir(args.root):
+            parser.error("Must specify a directory, when sorting by coverage")
+        matches = find_partial_coverage_modules(args.root)
+    elif os.path.isdir(args.root):
         matches = find_modules(args.root)
     elif os.path.isfile(args.root):
         matches = iter(([args.root], []))
@@ -304,7 +333,7 @@ def main(args):
             sorted_commits = sort_by_date(commits)
         limit = None if args.max == 0 else args.max
         top_n = [c.author for c in sorted_commits[:limit]]
-        print("(%s)", ','.join(top_n))
+        print("(%s)" % ','.join(top_n))
         if args.details:
             for commit in sorted_commits[:limit]:
                 print(commit.show(args.verbose))
@@ -322,7 +351,7 @@ if __name__ == "__main__":
                         help='Maximum number of users/commits to show. '
                         'Default=5, use 0 for all.')
     parser.add_argument('-s', '--sort', dest='sort_by', action='store',
-                        choices={'date', 'size'}, default='date',
-                        help='Sort order for report. Default=date.')
+                        choices={'date', 'size', 'cover'}, default='date',
+                        help="Sort order for report. Default='date'.")
     parser.add_argument(dest='root', metavar='file-or-dir')
     main(parser.parse_args())
