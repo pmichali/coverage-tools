@@ -329,6 +329,7 @@ def merge_user_commits(commits):
 
 
 def sort_by_size(commits):
+    """Sort by commit size, per author."""
     # First sort commits by author email
     sorted_commits = sorted(commits)
     users = []
@@ -346,7 +347,8 @@ def sort_by_date(commits):
     return sorted(commits, key=lambda x: x.committer_time, reverse=True)
 
 
-def sort_by_name(set_of_names):
+def sort_by_name(names):
+    """Sort by last name, uniquely."""
 
     def last_name_key(full_name):
         parts = full_name.split(' ')
@@ -355,9 +357,15 @@ def sort_by_name(set_of_names):
         last_first = parts[-1] + ' ' + ' '.join(parts[:-1])
         return last_first.upper()
 
-    as_list = list(set_of_names)
-    as_list.sort(key=last_name_key)
-    return as_list
+    return sorted(set(names), key=last_name_key)
+
+
+def unique_authors(names):
+    """Unique list of authors, but preserving order."""
+    seen = set()
+    seen_add = seen.add  # Assign to variable, so not resolved each time
+    return [x.author for x in names
+            if not (x.author in seen or seen_add(x.author))]
 
 
 def main(args):
@@ -377,7 +385,7 @@ def main(args):
     else:
         parser.error("Must specify a file or a directory to process")
     blame_infos = collect_blame_info(matches)
-    all_authors = set()
+    all_authors = []
     for info in blame_infos:
         commits = parse_info_records(info, coverage_mode)
         if args.sort_by == 'size':
@@ -387,14 +395,14 @@ def main(args):
         else:
             sorted_commits = commits
         limit = None if args.max == 0 else args.max
-        top_n = set([c.author for c in sorted_commits[:limit]])
-        all_authors.update(top_n)
+        top_n = unique_authors(sorted_commits[:limit])
+        all_authors += top_n
         # Don't alter, as names in sort (date/size) order
-        print("(%s)" % ','.join(top_n))
+        print("(%s)" % ', '.join(top_n))
         if args.details:
             for commit in sorted_commits[:limit]:
                 print(commit.show(args))
-    print("\n\nAll authors: %s" % ','.join(sort_by_name(all_authors)))
+    print("\n\nAll authors: %s" % ', '.join(sort_by_name(all_authors)))
 
 def setup_parser():
     parser = argparse.ArgumentParser(

@@ -517,3 +517,17 @@ def test_name_sort():
     expected = ['Charlie Coder', 'john', 'Patty Python']
     assert whodunit.sort_by_name(names) == expected
 
+
+def test_unique_authors():
+    commit1 = create_commit(
+        {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
+         'lines': 1})
+    commit2 = create_commit(
+        {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
+         'lines': 1, 'line_number': 2, 'committer_time': 1453922613})
+    commit3 = create_commit(
+        {'uuid': '65491efbd9ea0843c00cb50ff4c89211862924de',
+         'lines': 1, 'line_number': 5, 'committer_time': 1427468897,
+         'author': 'Patty Python'})
+    authors = whodunit.unique_authors([commit1, commit2, commit3])
+    assert authors == ['Joe Dirt', 'Patty Python']
