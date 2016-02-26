@@ -235,7 +235,8 @@ def test_parse_two_records_same_commit():
 
 def test_parse_not_aggregating_two_records_same_commit():
     blame_output = line_one + line_three
-    commits = whodunit.parse_info_records(blame_output, aggregate=False)
+    commits = whodunit.parse_info_records(blame_output,
+                                          unique_commits=True)
     assert len(commits) == 2
     record = commits[0]
     assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
@@ -420,3 +421,99 @@ def test_coverage_lacking_for_several_ranges():
     result = whodunit.determine_coverage(coverage_fragment)
     assert result == ("some/path/to/some_file.py",
                       [(104, 106), (109, 109), (290, 291)])
+
+
+def helper_make_options(verbose, mode):
+    parser = whodunit.setup_parser()
+    options = ['-s', mode, 'dummy-file']
+    if verbose:
+        options.append('-v')
+    return parser.parse_args(options)
+
+def test_show_commit():
+    commit = create_commit(
+        {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775'})
+    expected_output = "    6e3b3aec    10 Joe Dirt                  2016-02-01"
+    args = helper_make_options(verbose=False, mode='size')
+    assert args.sort_by == 'size'
+    assert not args.verbose
+    assert commit.show(args) == expected_output
+
+
+def test_show_commit_verbose_mode():
+    info = {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
+            'committer': 'Patty Python', 'committer_mail': 'patty.python.com'}
+    commit = create_commit(info)
+    expected_output = ("    6e3b3aec    10 "
+                       "Joe Dirt joe@dirt.com                              "
+                       "2016-02-01 09:08:42 -0500 "
+                       "Patty Python patty.python.com")
+    args = helper_make_options(verbose=True, mode='date')
+    assert args.sort_by == 'date'
+    assert args.verbose
+    assert commit.show(args) == expected_output
+
+
+def test_show_commit_for_coverage():
+    commit1 = create_commit(
+        {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
+         'lines': 1})
+    commit2 = create_commit(
+        {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
+         'lines': 1, 'line_number': 2, 'committer_time': 1453922613})
+    commit3 = create_commit(
+        {'uuid': '65491efbd9ea0843c00cb50ff4c89211862924de',
+         'lines': 1, 'line_number': 5, 'committer_time': 1427468897,
+         'author': 'Patty Python'})
+    args = helper_make_options(verbose=False, mode='cover')
+    assert args.sort_by == 'cover'
+    assert not args.verbose
+    expected_output = "    6e3b3aec     1 Joe Dirt                  2016-02-01"
+    assert commit1.show(args) == expected_output
+    expected_output = "    6e3b3aec     2 Joe Dirt                  2016-01-27"
+    assert commit2.show(args) == expected_output
+    expected_output = "    65491efb     5 Patty Python              2015-03-27"
+    assert commit3.show(args) == expected_output
+
+
+def test_show_commit_for_coverage_verbose():
+    info = {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
+            'lines': 1, 'line_number': 1547,
+            'committer': 'Patty Python', 'committer_mail': 'patty.python.com'}
+    commit = create_commit(info)
+    expected_output = ("    6e3b3aec  1547 "
+                       "Joe Dirt joe@dirt.com                              "
+                       "2016-02-01 09:08:42 -0500 "
+                       "Patty Python patty.python.com")
+    args = helper_make_options(verbose=True, mode='cover')
+    assert args.sort_by == 'cover'
+    assert args.verbose
+    assert commit.show(args) == expected_output
+
+
+def test_name_sort():
+    names = set(['Charlie Coder', 'Zebra Able'])
+    assert whodunit.sort_by_name(names) == ['Zebra Able', 'Charlie Coder']
+
+    names = set(['Peter', 'Paul', 'Mary'])
+    assert whodunit.sort_by_name(names) == ['Mary', 'Paul', 'Peter']
+
+    names = set(['Peter', 'paul', 'Mary'])
+    assert whodunit.sort_by_name(names) == ['Mary', 'paul', 'Peter']
+
+    names = set(['Joe Zoolander', 'Charlie Coder', 'Xanadu'])
+    expected = ['Charlie Coder', 'Xanadu', 'Joe Zoolander']
+    assert whodunit.sort_by_name(names) == expected
+
+    names = set(['Xanadu', 'Charlie Z. Coder', 'Joe A. Zoolander'])
+    expected = ['Charlie Z. Coder', 'Xanadu', 'Joe A. Zoolander']
+    assert whodunit.sort_by_name(names) == expected
+
+    names = set(['Marky Malarkie', 'Joe Dirt Sr.'])
+    expected = ['Marky Malarkie', 'Joe Dirt Sr.']  # doesn't handle suffix
+    assert whodunit.sort_by_name(names) == expected
+
+    names = set(['john', 'Patty Python', 'Charlie Coder'])
+    expected = ['Charlie Coder', 'john', 'Patty Python']
+    assert whodunit.sort_by_name(names) == expected
+

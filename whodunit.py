@@ -6,13 +6,13 @@
 # of lines for a commiter, per commit.
 #
 # Usage:
-#    whodunit.py [-h] [-d] [-v] [-m] [-s {date,size}] file-or-directory
+#    whodunit.py [-h] [-d] [-v] [-m] [-s {date,size,cover}] file-or-directory
 # Where:
 # -h, --help            show this help message and exit.
 # -d, --details         Show individual commit/user details.
 # -v, --verbose         Show additional info on each commit.
-# -m, --max             Maximum number of users/commits to show. Default=5,
-#                       use 0 for all.
+# -m, --max             Maximum number of users/commits to show. Default=0
+#                       (show all).
 # -s {date,size,cover}, --sort {date,size,cover} Sort order for report.
 #                       Default='date'.
 #
@@ -29,13 +29,17 @@
 # that commit.
 #
 # If the --verbose option is selected, then the author's email address,
-# commiter's name, and commiter's email are also shown.
+# commiter's name, and commiter's email are also shown. The time and time-
+# zone will be shown for the commit date.
 #
 # In the case of sorting by cover, you must specify a directory (at the root
-# of the project tree) with coverage HTML files to process. The output will
-# show the owners of the lines in modules in the report that are flagged
-# as missing coverage or partial coverage. The line number, committer, and
-# date will be shown.
+# of the project tree) with coverage HTML files to process. You cannot specify
+# the --max' option, and detailed output is assumed.
+#
+# The output will show the lines from  modules in the report that are flagged
+# as missing coverage or partial coverage. The commit ID, line number,
+# committer, and date will be shown. With the --verbose flag, the committer's
+# email and detailed date/time will be shown.
 
 from __future__ import print_function
 
@@ -123,18 +127,36 @@ class BlameRecord(object):
         if not hasattr(self, 'committer_mail'):
             raise BadRecordException("Missing committer email")
 
-    def show(self, verbose):
+    def show(self, options):
+        """Display one commit line.
+
+        Output varies based on type of reporting done. For 'size' and 'date'
+        reporting, the output will be:
+            <uuid> <#lines> <author> <short-commit-date>
+
+        If verbose flag set, the output will be:
+            <uuid> <#lines> <author+email> <long-date> <committer+email>
+
+        If report type is 'cover', the number of lines will be the line
+        number in the source file, instead of line count.
+        """
+        verbose = options.verbose
+        coverage_mode = options.sort_by == 'cover'
         author = self.author
         author_width = 25
         committer = ''
         commit_date = self.date_to_str(self.committer_time, self.committer_tz,
                                        verbose)
+        if coverage_mode:
+            line_info = self.line_number
+        else:
+            line_info = self.line_count
         if verbose:
             author += " %s" % self.author_mail
             author_width = 50
             committer = " %s %s" % (self.committer, self.committer_mail)
         return "    {} {:5d} {:{}s} {}{}".format(
-            self.uuid[:8], self.line_count, author, author_width,
+            self.uuid[:8], line_info, author, author_width,
             commit_date, committer)
 
     def __str__(self):
@@ -259,7 +281,7 @@ def collect_blame_info(matches):
             yield out
 
 
-def parse_info_records(lines, aggregate=True):
+def parse_info_records(lines, unique_commits=False):
     records = []
     commits = set()
     in_new_record = False
@@ -268,7 +290,7 @@ def parse_info_records(lines, aggregate=True):
         if m:
             uuid = m.group(1)
             line_number = int(m.group(2))
-            if not aggregate or uuid not in commits:
+            if unique_commits or uuid not in commits:
                 record = BlameRecord(uuid, line_number)
                 commits.add(uuid)
                 in_new_record = True
@@ -324,11 +346,29 @@ def sort_by_date(commits):
     return sorted(commits, key=lambda x: x.committer_time, reverse=True)
 
 
-def main(args):
+def sort_by_name(set_of_names):
 
-    if args.sort_by == 'cover':
+    def last_name_key(full_name):
+        parts = full_name.split(' ')
+        if len(parts) == 1:
+            return full_name.upper()
+        last_first = parts[-1] + ' ' + ' '.join(parts[:-1])
+        return last_first.upper()
+
+    as_list = list(set_of_names)
+    as_list.sort(key=last_name_key)
+    return as_list
+
+
+def main(args):
+    coverage_mode = args.sort_by == 'cover'
+    if coverage_mode:
         if not os.path.isdir(args.root):
             parser.error("Must specify a directory, when sorting by coverage")
+        if args.max != 0:
+            parser.error("Cannot specify a limit to number of users/commits "
+                         "to show, when sorting coverage reports")
+        args.details = True  # Force on
         matches = find_partial_coverage_modules(args.root)
     elif os.path.isdir(args.root):
         matches = find_modules(args.root)
@@ -337,21 +377,26 @@ def main(args):
     else:
         parser.error("Must specify a file or a directory to process")
     blame_infos = collect_blame_info(matches)
+    all_authors = set()
     for info in blame_infos:
-        commits = parse_info_records(info)
+        commits = parse_info_records(info, coverage_mode)
         if args.sort_by == 'size':
             sorted_commits = sort_by_size(commits)
-        else:
+        elif args.sort_by == 'date':
             sorted_commits = sort_by_date(commits)
+        else:
+            sorted_commits = commits
         limit = None if args.max == 0 else args.max
-        top_n = [c.author for c in sorted_commits[:limit]]
+        top_n = set([c.author for c in sorted_commits[:limit]])
+        all_authors.update(top_n)
+        # Don't alter, as names in sort (date/size) order
         print("(%s)" % ','.join(top_n))
         if args.details:
             for commit in sorted_commits[:limit]:
-                print(commit.show(args.verbose))
+                print(commit.show(args))
+    print("\n\nAll authors: %s" % ','.join(sort_by_name(all_authors)))
 
-
-if __name__ == "__main__":
+def setup_parser():
     parser = argparse.ArgumentParser(
         description='Determine ownership for file or tree of files.')
     parser.add_argument('-d', '--details', action='store_true',
@@ -359,11 +404,15 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', action='store_true',
                         dest='verbose',
                         help='Show additional info on each commit.')
-    parser.add_argument('-m', '--max', action='store', type=int, default=5,
+    parser.add_argument('-m', '--max', action='store', type=int, default=0,
                         help='Maximum number of users/commits to show. '
-                        'Default=5, use 0 for all.')
+                        'Default=0 (show all).')
     parser.add_argument('-s', '--sort', dest='sort_by', action='store',
                         choices={'date', 'size', 'cover'}, default='date',
                         help="Sort order for report. Default='date'.")
     parser.add_argument(dest='root', metavar='file-or-dir')
+    return parser
+
+if __name__ == "__main__":
+    parser = setup_parser()
     main(parser.parse_args())
