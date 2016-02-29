@@ -82,7 +82,7 @@ You can use the --filter option to restrict the files that are evaluated.
 This is a regular expression like value, where '*' matches '.' as well,
 so hidden files would be included, with the default value of '*'.
 
-Instead of providign a directory to start from, you can provide an
+Instead of providing a directory to start from, you can provide an
 individual file (tracked by git), and it will produce a report for that
 file.
 
@@ -119,7 +119,4 @@ the line number, or line range in the file.
 
 TODOs:
 
-
-- Allow relative directory specification.
-- Allow multiple files, in file mode?
 - Create script that will show coverage results for lines in change-set.
