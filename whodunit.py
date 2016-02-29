@@ -150,15 +150,17 @@ class BlameRecord(object):
         commit_date = self.date_to_str(self.committer_time, self.committer_tz,
                                        verbose)
         if coverage_mode:
-            line_info = self.line_number
+            line_info = self.lines
+            line_width = 11
         else:
-            line_info = self.line_count
+            line_info = str(self.line_count)
+            line_width = 5
         if verbose:
             author += " %s" % self.author_mail
             author_width = 50
             committer = " %s %s" % (self.committer, self.committer_mail)
-        return "    {} {:5d} {:{}s} {}{}".format(
-            self.uuid[:8], line_info, author, author_width,
+        return "    {} {:>{}s} {:{}s} {}{}".format(
+            self.uuid[:8], line_info, line_width, author, author_width,
             commit_date, committer)
 
     def __str__(self):
@@ -429,7 +431,7 @@ def main(args):
         elif args.sort_by == 'date':
             sorted_commits = sort_by_date(commits)
         else:
-            sorted_commits = commits
+            sorted_commits = sort_by_contiguous_commit(commits)
         limit = None if args.max == 0 else args.max
         top_n = unique_authors(sorted_commits[:limit])
         all_authors += top_n

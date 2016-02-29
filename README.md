@@ -108,19 +108,18 @@ For example:
     python whodunit.py -s cover /opt/stack/networking-cisco/cover
 
     routerrole.py (Bob Melander)
-        a238bf6b    54 Bob Melander              2015-10-13
-        a238bf6b    61 Bob Melander              2015-10-13
-        a238bf6b    64 Bob Melander              2015-10-13
+        a238bf6b          54 Bob Melander              2015-10-13
+        a238bf6b       61-64 Bob Melander              2015-10-13
 </pre>
 
 Here, the same commit, author, and date information information is shown
 (and committer, if --verbose used), but the number after the commit ID is
-the line nuber in the file.
+the line number, or line range in the file.
 
 
 TODOs:
 
-- Consolodate contiguous lines for coverage reporting.
+
 - Allow relative directory specification.
 - Allow multiple files, in file mode?
 - Create script that will show coverage results for lines in change-set.
