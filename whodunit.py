@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # WhoDunIt
 #
 # Determines the owner(s) of lines in a file. Can operate on a single file
@@ -6,13 +7,14 @@
 # of lines for a commiter, per commit.
 #
 # Usage:
-#    whodunit.py [-h] [-d] [-v] [-m] [-s {date,size,cover}] file-or-directory
+#    whodunit.py [-h] [-d] [-v] [-m] [-f] [-s {date,size,cover}] file-or-dir
 # Where:
 # -h, --help            show this help message and exit.
 # -d, --details         Show individual commit/user details.
 # -v, --verbose         Show additional info on each commit.
 # -m, --max             Maximum number of users/commits to show. Default=0
 #                       (show all).
+# -f, --filter          Filter regex for filename. Default='*'
 # -s {date,size,cover}, --sort {date,size,cover} Sort order for report.
 #                       Default='date'.
 #
@@ -249,10 +251,10 @@ def is_git_file(path, name):
     return p.returncode == 0
 
 
-def find_modules(top):
+def find_modules(top, filter):
     """Look for git files in tree. Will handle all lines."""
     for path, dirlist, filelist in os.walk(top):
-        for name in fnmatch.filter(filelist, "*"):
+        for name in fnmatch.filter(filelist, filter):
             if is_git_file(path, name):
                 yield (os.path.join(path, name), [])
 
@@ -347,6 +349,36 @@ def sort_by_date(commits):
     return sorted(commits, key=lambda x: x.committer_time, reverse=True)
 
 
+def sort_by_contiguous_commit(commits):
+    """Consolidate adjacent lines, if same commit ID.
+
+    Will modify line number to be a range, when two or more lines with the
+    same commit ID.
+    """
+    sorted_commits = []
+    if not commits:
+        return sorted_commits
+    prev_line = 0
+    prev_commit = None
+    prev_uuid = None
+    for commit in commits:
+        if commit.uuid != prev_uuid or commit.line_number != (prev_line + 1):
+            if prev_commit is not None:
+                prev_commit.lines = "%d-%d" % (prev_commit.line_number,
+                                               prev_line)
+                sorted_commits.append(prev_commit)
+            prev_commit = commit
+        prev_uuid = commit.uuid
+        prev_line = commit.line_number
+    # Take care of last commit
+    if prev_commit.line_number != prev_line:
+        prev_commit.lines = "%d-%d" % (prev_commit.line_number, prev_line)
+    else:
+        prev_commit.lines = str(prev_commit.line_number)
+    sorted_commits.append(prev_commit)
+    return sorted_commits
+
+
 def sort_by_name(names):
     """Sort by last name, uniquely."""
 
@@ -379,7 +411,7 @@ def main(args):
         args.details = True  # Force on
         matches = find_partial_coverage_modules(args.root)
     elif os.path.isdir(args.root):
-        matches = find_modules(args.root)
+        matches = find_modules(args.root, args.filter)
     elif os.path.isfile(args.root):
         matches = iter(([args.root], []))
     else:
@@ -418,6 +450,9 @@ def setup_parser():
     parser.add_argument('-s', '--sort', dest='sort_by', action='store',
                         choices={'date', 'size', 'cover'}, default='date',
                         help="Sort order for report. Default='date'.")
+    parser.add_argument('-f', '--filter', action='store', default="*",
+                        help="Filter regular expression for file name. "
+                             "Default='*', which includes hidden files")
     parser.add_argument(dest='root', metavar='file-or-dir')
     return parser
 

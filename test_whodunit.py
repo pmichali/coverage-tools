@@ -1,4 +1,5 @@
 import collections
+import copy
 import pytest
 import StringIO
 import whodunit
@@ -519,15 +520,77 @@ def test_name_sort():
 
 
 def test_unique_authors():
-    commit1 = create_commit(
-        {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
-         'lines': 1})
-    commit2 = create_commit(
-        {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
-         'lines': 1, 'line_number': 2, 'committer_time': 1453922613})
-    commit3 = create_commit(
-        {'uuid': '65491efbd9ea0843c00cb50ff4c89211862924de',
-         'lines': 1, 'line_number': 5, 'committer_time': 1427468897,
-         'author': 'Patty Python'})
+    UUID1 = '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775'
+    UUID2 = '65491efbd9ea0843c00cb50ff4c89211862924de'
+    commit1 = create_commit({'uuid': UUID1, 'lines': 1})
+    commit2 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 2})
+    commit3 = create_commit({'uuid': UUID2, 'lines': 1, 'line_number': 5,
+                             'committer_time': 1427468897,
+                             'author': 'Patty Python'})
     authors = whodunit.unique_authors([commit1, commit2, commit3])
     assert authors == ['Joe Dirt', 'Patty Python']
+
+
+def test_no_commits():
+    actual_commits = whodunit.sort_by_contiguous_commit([])
+    assert actual_commits == []
+
+
+def test_one_commit():
+    UUID1 = '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775'
+    commit = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
+    expected = copy.copy(commit)
+    expected.lines = '1'
+    actual_commits = whodunit.sort_by_contiguous_commit([commit])
+    assert actual_commits == [expected]
+
+
+def test_non_contiguous_lines():
+    UUID1 = '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775'
+    commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
+    commit2 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 3})
+    commit3 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 5})
+    expected_commits = commits = [commit1, commit2, commit3]
+
+    actual_commits = whodunit.sort_by_contiguous_commit(commits)
+    assert actual_commits == expected_commits
+
+
+def test_contiguous_lines():
+    UUID1 = '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775'
+    commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
+    commit2 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 2})
+    commit3 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 5})
+    commits = [commit1, commit2, commit3]
+
+    actual_commits = whodunit.sort_by_contiguous_commit(commits)
+    assert len(actual_commits) == 2
+    assert actual_commits[0].lines == '1-2'
+    assert actual_commits[0].uuid == UUID1
+    assert actual_commits[1].uuid == UUID1
+    assert actual_commits[1].lines == '5'
+
+
+def test_contiguous_lines_different_commit():
+    UUID1 = '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775'
+    UUID2 = '65491efbd9ea0843c00cb50ff4c89211862924de'
+    commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
+    commit2 = create_commit({'uuid': UUID2, 'lines': 1, 'line_number': 2})
+    commit3 = create_commit({'uuid': UUID2, 'lines': 1, 'line_number': 5})
+    expected_commits = commits = [commit1, commit2, commit3]
+
+    actual_commits = whodunit.sort_by_contiguous_commit(commits)
+    assert len(actual_commits) == 3
+    assert actual_commits == expected_commits
+
+
+def test_last_commit_part_of_contiguous_region():
+    UUID1 = '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775'
+    commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
+    commit2 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 2})
+    commit3 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 3})
+    commits = [commit1, commit2, commit3]
+
+    actual_commits = whodunit.sort_by_contiguous_commit(commits)
+    assert len(actual_commits) == 1
+    assert actual_commits[0].lines == '1-3'
