@@ -120,3 +120,4 @@ the line number, or line range in the file.
 TODOs:
 
 - Create script that will show coverage results for lines in change-set.
+- Refactor BlameRecord into base class and child classes, based on mode.

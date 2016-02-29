@@ -267,6 +267,10 @@ def build_line_range_filter(ranges):
 
 
 def collect_blame_info(matches):
+    """Runs git blame on files, for the specified sets of line ranges.
+
+    If no line range tuples are provided, it will do all lines.
+    """
     old_area = None
     for filename, ranges in matches:
         area, name = os.path.split(filename)
