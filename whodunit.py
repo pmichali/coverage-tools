@@ -408,6 +408,7 @@ def unique_authors(names):
 
 def main(args):
     coverage_mode = args.sort_by == 'cover'
+    args.root = os.path.abspath(args.root)
     if coverage_mode:
         if not os.path.isdir(args.root):
             parser.error("Must specify a directory, when sorting by coverage")

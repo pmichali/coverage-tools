@@ -260,6 +260,8 @@ def create_commit(info):
     commit = whodunit.BlameRecord(info['uuid'], 5)
     commit.line_count = info['lines'] if 'lines' in info else 10
     commit.line_number = info['line_number'] if 'line_number' in info else 1
+    # For testing, we set the calculated line range equal to the line number
+    commit.lines = str(commit.line_number)
     commit.author = info['author'] if 'author' in info else 'Joe Dirt'
     commit.author_mail = (info['author_mail'] if 'author_mail' in info
                           else 'joe@dirt.com')
@@ -461,7 +463,7 @@ def test_show_commit_for_coverage():
          'lines': 1})
     commit2 = create_commit(
         {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775',
-         'lines': 1, 'line_number': 2, 'committer_time': 1453922613})
+         'lines': 1, 'line_number': 3, 'committer_time': 1453922613})
     commit3 = create_commit(
         {'uuid': '65491efbd9ea0843c00cb50ff4c89211862924de',
          'lines': 1, 'line_number': 5, 'committer_time': 1427468897,
@@ -469,11 +471,14 @@ def test_show_commit_for_coverage():
     args = helper_make_options(verbose=False, mode='cover')
     assert args.sort_by == 'cover'
     assert not args.verbose
-    expected_output = "    6e3b3aec     1 Joe Dirt                  2016-02-01"
+    expected_output = ("    6e3b3aec           1 Joe Dirt                  "
+                       "2016-02-01")
     assert commit1.show(args) == expected_output
-    expected_output = "    6e3b3aec     2 Joe Dirt                  2016-01-27"
+    expected_output = ("    6e3b3aec           3 Joe Dirt                  "
+                       "2016-01-27")
     assert commit2.show(args) == expected_output
-    expected_output = "    65491efb     5 Patty Python              2015-03-27"
+    expected_output = ("    65491efb           5 Patty Python              "
+                       "2015-03-27")
     assert commit3.show(args) == expected_output
 
 
@@ -482,7 +487,7 @@ def test_show_commit_for_coverage_verbose():
             'lines': 1, 'line_number': 1547,
             'committer': 'Patty Python', 'committer_mail': 'patty.python.com'}
     commit = create_commit(info)
-    expected_output = ("    6e3b3aec  1547 "
+    expected_output = ("    6e3b3aec        1547 "
                        "Joe Dirt joe@dirt.com                              "
                        "2016-02-01 09:08:42 -0500 "
                        "Patty Python patty.python.com")
