@@ -550,7 +550,8 @@ def test_non_contiguous_lines():
     commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
     commit2 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 3})
     commit3 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 5})
-    expected_commits = commits = [commit1, commit2, commit3]
+    commits = [commit1, commit2, commit3]
+    expected_commits = copy.copy(commits)
 
     actual_commits = whodunit.sort_by_contiguous_commit(commits)
     assert actual_commits == expected_commits
@@ -577,7 +578,8 @@ def test_contiguous_lines_different_commit():
     commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
     commit2 = create_commit({'uuid': UUID2, 'lines': 1, 'line_number': 2})
     commit3 = create_commit({'uuid': UUID2, 'lines': 1, 'line_number': 5})
-    expected_commits = commits = [commit1, commit2, commit3]
+    commits = [commit1, commit2, commit3]
+    expected_commits = copy.copy(commits)
 
     actual_commits = whodunit.sort_by_contiguous_commit(commits)
     assert len(actual_commits) == 3

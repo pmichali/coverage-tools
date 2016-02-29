@@ -167,8 +167,9 @@ class BlameRecord(object):
                                                self.date)
 
     def __repr__(self):
-        return "%s(%s) %s %s %d" % (self.__class__, self.uuid, self.author,
-                                    self.author_mail, self.line_count)
+        return "%s(%s) %s %s %d %d" % (self.__class__, self.uuid, self.author,
+                                       self.author_mail, self.line_count,
+                                       self.line_number)
 
 
 def make_ranges(lines):
@@ -349,6 +350,13 @@ def sort_by_date(commits):
     return sorted(commits, key=lambda x: x.committer_time, reverse=True)
 
 
+def line_range(first_line, last_line):
+    if first_line != last_line:
+        return "%d-%d" % (first_line, last_line)
+    else:
+        return str(first_line)
+
+
 def sort_by_contiguous_commit(commits):
     """Consolidate adjacent lines, if same commit ID.
 
@@ -358,23 +366,19 @@ def sort_by_contiguous_commit(commits):
     sorted_commits = []
     if not commits:
         return sorted_commits
-    prev_line = 0
-    prev_commit = None
-    prev_uuid = None
+    prev_commit = commits.pop(0)
+    prev_line = prev_commit.line_number
+    prev_uuid = prev_commit.uuid
     for commit in commits:
-        if commit.uuid != prev_uuid or commit.line_number != (prev_line + 1):
-            if prev_commit is not None:
-                prev_commit.lines = "%d-%d" % (prev_commit.line_number,
-                                               prev_line)
-                sorted_commits.append(prev_commit)
+        if (commit.uuid != prev_uuid or
+                commit.line_number != (prev_line + 1)):
+            prev_commit.lines = line_range(prev_commit.line_number, prev_line)
+            sorted_commits.append(prev_commit)
             prev_commit = commit
-        prev_uuid = commit.uuid
         prev_line = commit.line_number
+        prev_uuid = commit.uuid
     # Take care of last commit
-    if prev_commit.line_number != prev_line:
-        prev_commit.lines = "%d-%d" % (prev_commit.line_number, prev_line)
-    else:
-        prev_commit.lines = str(prev_commit.line_number)
+    prev_commit.lines = line_range(prev_commit.line_number, prev_line)
     sorted_commits.append(prev_commit)
     return sorted_commits
 
