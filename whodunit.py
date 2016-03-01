@@ -230,6 +230,8 @@ class Owners(object):
                 if not (x.author in seen or seen_add(x.author))]
 
     def show_details(self, limit):
+        if limit == 0:
+            limit = None
         for commit in self.sorted_commits[:limit]:
             print(self.show(commit))
 
@@ -491,7 +493,7 @@ def main(args):
         all_authors += top_n
         # Don't alter ordering, as names in sort (date/size) order
         print("(%s)" % ', '.join(top_n))
-        if args.details:
+        if owners.details:
             owners.show_details(args.max)
     print("\n\nAll authors: %s" % ', '.join(sort_by_name(all_authors)))
 
