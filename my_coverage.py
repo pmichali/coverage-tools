@@ -30,24 +30,20 @@ import re
 import subprocess
 
 file_re = re.compile(r'diff --git a/(\S+)')
-diff_region_re = re.compile(r'@@\s[-]\S+\s[+](\d+),(\d+)\s@@')
+diff_region_re = re.compile(r'@@\s[-]\S+\s[+](\S+)\s@@')
 
 
 class DiffCollectionFailed(Exception):
     pass
 
 
-def collect_diffs(root, commits):
-    command = ['git', 'diff', '-U1', '-w', commits]
-    os.chdir(root)
-    print(command)
-    p = subprocess.Popen(command,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = p.communicate()
-    if err:
-        raise DiffCollectionFailed("In area %s using commits '%s': %s" %
-                                   (root, commits, err))
-    return iter(out.splitlines())
+def check_coverage(root, coverage_file, line_ranges):
+    """Check the lines in coverage file and report coverage status."""
+    pass
+
+
+def coverage_file_name(source_file):
+    return source_file.replace('/', '_').replace('.', '_') + ".html"
 
 
 def make_ranges(lines):
@@ -56,7 +52,6 @@ def make_ranges(lines):
     Only will be called if there is one or more entries in the list. Single
     lines, will be coverted into tuple with same line.
     """
-    print(lines)
     start_line = last_line = lines.pop(0)
     ranges = []
     for line in lines:
@@ -66,17 +61,20 @@ def make_ranges(lines):
             ranges.append((start_line, last_line))
             start_line = line
             last_line = line
-        ranges.append((start_line, last_line))
-    print(ranges)
+    ranges.append((start_line, last_line))
     return ranges
 
-                                                                            
+
 def collect_diff_lines(diff_region, start, last):
+    """Find added lines in a diff region.
+
+    Note: If the region is the last in the file, it may not have a
+    trailing context line, so always check, even if there is one or two
+    lines.
+    """
     lines = []
-    if (last - start) == 1:
-        return lines
     line_num = start
-    while line_num < last:
+    while line_num <= last:
         line = diff_region.next()
         if line.startswith('-'):
             continue
@@ -86,21 +84,56 @@ def collect_diff_lines(diff_region, start, last):
     return lines
 
 
-def extract_file_diffs(diff_output):
+def parse_diffs(diff_output):
+    """Collect the file and ranges of diffs added, if any."""
     diff_ranges = []
-    for line in diff_output:
+    source_file = ''
+    diff_lines = iter(diff_output.splitlines())
+    for line in diff_lines:
         m = file_re.match(line)
         if m:
             source_file = m.group(1)
             continue
         m = diff_region_re.match(line)
         if m:
-            start = int(m.group(1))
-            last = start + int(m.group(2)) - 1
-            lines = collect_diff_lines(diff_output, start, last)
-            if lines:
-                diff_ranges += make_ranges(lines)
+            start, comma, num = m.group(1).partition(',')
+            start = int(start)
+            if num:
+                last = start + int(num) - 1
+            else:
+                last = start
+            added_lines = collect_diff_lines(diff_lines, start, last)
+            if added_lines:
+                diff_ranges += make_ranges(added_lines)
     return (source_file, diff_ranges)
+
+
+def collect_diffs_for_files(root, versions, files):
+    """Generator to obtain the diffs for files."""
+    os.chdir(root)
+    for a_file in files:
+        command = ['git', 'diff', '-U1', '-w', versions, '--', a_file]
+        p = subprocess.Popen(command,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        if err:
+            raise DiffCollectionFailed("Unable to collect diffs for "
+                                       "file %s/%s: %s" % (root, a_file, err))
+        yield out
+
+
+def collect_diff_files(root, versions):
+    """Generator to obtain all the diff files."""
+    command = ['git', 'diff', '--name-only', versions]
+    os.chdir(root)
+    p = subprocess.Popen(command,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if err:
+        raise DiffCollectionFailed("Unable to find diff files to examine "
+                                   "in %s: %s" % (root, err))
+    for line in out.splitlines():
+        yield line
 
 
 def main(args):
@@ -110,17 +143,22 @@ def main(args):
                      "of the Git repo")
     if not os.path.isdir(os.path.join(args.root, 'cover')):
         parser.error("Missing cover directory for project")
-    diffs = collect_diffs(args.root, args.versions)
-    for diff in diffs:
-        print(diff)
+    files = collect_diff_files(args.root, args.versions)
+    diff_files = collect_diffs_for_files(args.root, args.versions, files)
+    for diffs in diff_files:
+        source_file, line_ranges = parse_diffs(diffs)
+        check_coverage(args.root, source_file, line_ranges)
 
 
 def setup_parser():
     parser = argparse.ArgumentParser(
         description='Determine ownership for file or tree of files.')
-    parser.add_argument(dest='root', metavar='repo-dir')
-    parser.add_argument(dest='versions', metavar='versions')
+    parser.add_argument(dest='root', metavar='repo-dir',
+                        help="Root of Git repo")
+    # TODO(pcm): Use -v {commit|working|"string spec"}
+    parser.add_argument(dest='versions', help="Git diff version specification")
     return parser
+
 
 if __name__ == "__main__":
     parser = setup_parser()
