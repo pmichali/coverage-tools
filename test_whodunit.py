@@ -467,7 +467,65 @@ def test_parsing_coverage_options():
     assert args.max == 0
 
 
-# TODO(pcm) Test validation
+def test_validate_cover():
+    parser = whodunit.setup_parser()
+    args = whodunit.validate(parser, ['-s', 'cover', '.'])
+    assert args.sort_by == 'cover'
+
+
+def test_validate_with_directory():
+    parser = whodunit.setup_parser()
+    args = whodunit.validate(parser, ['-s', 'date', '.'])
+    assert args.sort_by == 'date'
+
+
+def test_validate_with_file():
+    parser = whodunit.setup_parser()
+    args = whodunit.validate(parser, ['-s', 'size', './test_whodunit.py'])
+    assert args.sort_by == 'size'
+
+
+def test_fail_validate_cover_not_directory():
+    parser = whodunit.setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        whodunit.validate(parser, ['-s', 'cover', './test_whodunit'])
+    assert str(excinfo.value) == '2'
+
+
+def test_fail_validate_cover_with_max():
+    parser = whodunit.setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        whodunit.validate(parser, ['-s', 'cover', '-m', '5', '.'])
+    assert str(excinfo.value) == '2'
+
+
+def test_fail_validate_not_dir_or_file():
+    parser = whodunit.setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        whodunit.validate(parser, ['-s', 'date', './bogus-file'])
+    assert str(excinfo.value) == '2'
+
+
+def test_build_date_owner():
+    parser = whodunit.setup_parser()
+    args = whodunit.validate(parser, ['-s', 'date', '.'])
+    owner = whodunit.build_owner(args)
+    assert isinstance(owner, whodunit.DateOwners)
+
+
+def test_build_size_owner():
+    parser = whodunit.setup_parser()
+    args = whodunit.validate(parser, ['-s', 'size', './test_whodunit.py'])
+    owner = whodunit.build_owner(args)
+    assert isinstance(owner, whodunit.SizeOwners)
+
+
+def test_build_coverage_owner():
+    parser = whodunit.setup_parser()
+    args = whodunit.validate(parser, ['-s', 'cover', '.'])
+    owner = whodunit.build_owner(args)
+    assert isinstance(owner, whodunit.CoverageOwners)
+
 
 def test_show_commit():
     commit = create_commit(

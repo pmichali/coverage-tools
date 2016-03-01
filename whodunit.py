@@ -454,21 +454,28 @@ def sort_by_name(names):
     return sorted(set(names), key=last_name_key)
 
 
-def build_owner(args):
-    """Factory for creating owners, based on --sort option."""
+def validate(parser, provided_args=None):
+    args = parser.parse_args(provided_args)
     if args.sort_by == 'cover':
         if not os.path.isdir(args.root):
             parser.error("Must specify a directory, when sorting by coverage")
         if args.max != 0:
             parser.error("Cannot specify a limit to number of users/commits "
                          "to show, when sorting coverage reports")
+    elif not os.path.isdir(args.root) and not os.path.isfile(args.root):
+        parser.error("Must specify a file or a directory to process")
+    args.root = os.path.abspath(args.root)
+    return args
+
+
+def build_owner(args):
+    """Factory for creating owners, based on --sort option."""
+    if args.sort_by == 'cover':
         return CoverageOwners(args.root, args.verbose)
     if os.path.isdir(args.root):
         pass
-    elif os.path.isfile(args.root):
+    else:  # File
         args.root, args.filter = os.path.split(args.root)
-    else:
-        parser.error("Must specify a file or a directory to process")
     if args.sort_by == 'date':
         return DateOwners(args.root, args.filter, args.details,
                           args.verbose, args.max)
@@ -477,8 +484,8 @@ def build_owner(args):
                           args.verbose, args.max)
 
 
-def main(args):
-    args.root = os.path.abspath(args.root)
+def main(parser):
+    args = validate(parser)
     owners = build_owner(args)
 
     # Generators to get the owner info
@@ -519,5 +526,4 @@ def setup_parser():
     return parser
 
 if __name__ == "__main__":
-    parser = setup_parser()
-    main(parser.parse_args())
+    main(setup_parser())
