@@ -117,7 +117,13 @@ Here, the same commit, author, and date information information is shown
 the line number, or line range in the file.
 
 
+my_coverage
+-----------
+
+
 TODOs:
 
-- Create script that will show coverage results for lines in change-set.
-- Refactor BlameRecord into base class and child classes, based on mode.
+- Run coverage and mock to test more methods
+- New CLI args for my_coverage to allow more options (--details, --version)
+- Push up to GitHub
+- Document my_coverage

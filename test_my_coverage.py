@@ -185,7 +185,7 @@ def test_check_coverage_no_lines():
 <p id="n1" class="pln"><a href="#n1">1</a></p>
 <p id="n2" class="pln"><a href="#n2">2</a></p>
 <p id="n3" class="pln"><a href="#n3">3</a></p>
-"""
+""".splitlines()
     module = SourceModule('foo.py', [])
     check_coverage_status(coverage_info, module)
     assert module.lines == []
@@ -197,7 +197,7 @@ def test_coverage_updating():
 <p id="n64" class="stm par run hide_run"><a href="#n64">64</a></p>
 <p id="n65" class="stm mis"><a href="#n65">65</a></p>
 <p id="n66" class="stm run hide_run"><a href="#n66">66</a></p>
-"""
+""".splitlines()
     non_executable_line = SourceLine(63)
     partial_covered_line = SourceLine(64, is_context=False)
     missing_line = SourceLine(65, is_context=False)
@@ -209,3 +209,52 @@ def test_coverage_updating():
     assert partial_covered_line.status == 'par'
     assert missing_line.status == 'mis'
     assert covered_line.status == 'run'
+
+
+def test_report_non_coverage_files():
+    module = SourceModule('path/foo.py', [])
+    assert module.report() == 'path/foo.py (No coverage data)\n'
+
+
+def test_report_no_no_added_lines():
+    module = SourceModule('path/foo.py', [])
+    module.have_report = True
+    assert module.report() == 'path/foo.py (No added/changed lines)\n'
+
+    lines = [SourceLine(10, is_context=True), SourceLine(12, is_context=True)]
+    module = SourceModule('deleted_lines_file', lines)
+    module.have_report = True
+    assert module.report() == 'deleted_lines_file (No added/changed lines)\n'
+
+
+def test_report_one_line():
+    line = SourceLine(10, is_context=False, code='    x = 1')
+    module = SourceModule('path/foo.py', [line])
+    module.have_report = True
+    line.status = 'run'
+    expected = """path/foo.py (run=1, mis=0, par=0, ign=0)
+   10 run +    x = 1
+"""
+    assert module.report() == expected
+
+
+def test_report_multiple_blocks():
+    lines = [SourceLine(10, is_context=False, code='    x = 1'),
+             SourceLine(11, is_context=False, code='    y = 2'),
+             SourceLine(20, is_context=False, code='    z = 3'),
+             SourceLine(21, is_context=False, code='    for i in range(5)')]
+    lines[0].status = 'run'
+    lines[1].status = 'mis'
+    lines[2].status = 'par'
+    lines[3].status = '   '
+    module = SourceModule('path/foo.py', lines)
+    module.have_report = True
+
+    expected = """path/foo.py (run=1, mis=1, par=1, ign=1)
+   10 run +    x = 1
+   11 mis +    y = 2
+
+   20 par +    z = 3
+   21     +    for i in range(5)
+"""
+    assert module.report() == expected

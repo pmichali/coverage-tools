@@ -25,6 +25,7 @@
 from __future__ import print_function
 
 import argparse
+from collections import Counter
 import os
 import re
 import subprocess
@@ -61,16 +62,13 @@ class SourceLine(object):
 
 class SourceModule(object):
 
-    status_map = {'pln': '   ',
-                  'stm run': 'run',
-                  'stm mis': 'mis',
-                  'stm par': 'par'}
     def __init__(self, filename, lines):
         self.filename = filename
         self.lines = lines
         self.line_num_map = {l.line_number: l for l in lines}
         self.cover_file = (filename.replace('/', '_').replace('.', '_') +
                            ".html")
+        self.have_report = False
 
     def update_line_status(self, line_number, status):
         if line_number in self.line_num_map:
@@ -80,9 +78,29 @@ class SourceModule(object):
             else:
                 line.status = status[4:7]
 
+    def report(self):
+        output = self.filename
+        if not self.have_report:
+            return "%s (No coverage data)\n" % output
+        if not self.lines or all(l.is_context for l in self.lines):
+            return "%s (No added/changed lines)\n" % output
+        stats = Counter([l.status for l in self.lines if not l.is_context])
+        output += " (run={}, mis={}, par={}, ign={})\n".format(
+            stats['run'], stats['mis'], stats['par'], stats['   '])
+        last_line = None
+        for line in self.lines:
+            if last_line and line.line_number != (last_line + 1):
+                output += "\n"
+            output += "{:5d} {} {}{}\n".format(line.line_number,
+                                               line.status,
+                                               ' ' if line.is_context else '+',
+                                               line.code)
+            last_line = line.line_number
+        return output
+
 
 def check_coverage_status(coverage_info, module):
-    for coverage_line in coverage_info.splitlines():
+    for coverage_line in coverage_info:
         if summary_end_re.match(coverage_line):
             return
         m = source_line_re.match(coverage_line)
@@ -96,10 +114,11 @@ def check_coverage_file(root, module):
     """Check the lines in coverage file and report coverage status."""
     report_file = os.path.join(root, 'cover', module.cover_file)
     if not os.path.isfile(report_file):
-        print("WARNING! No coverage file for %s/%s", root, module.filename)
+        return  # No coverage data for file
     with open(report_file) as coverage_info:
-        results = check_coverage_status(coverage_info, module)
-        print(results)
+        coverage_lines = coverage_info.readlines()
+        check_coverage_status(coverage_lines, module)
+        module.have_report = True
 
 
 def collect_diff_lines(diff_region, start, last):
@@ -185,7 +204,7 @@ def main(args):
         source_file, lines = parse_diffs(diffs)
         module = SourceModule(source_file, lines)
         check_coverage_file(args.root, module)
-
+        print(module.report())
 
 def setup_parser():
     parser = argparse.ArgumentParser(
@@ -194,7 +213,6 @@ def setup_parser():
                         help="Root of Git repo")
     # TODO(pcm): Use --version {latest|working|"string spec"}
     # TODO(pcm): --details, show lines of code
-    # TODO(pcm): Restore use of 3 context lines for output (--context)
     parser.add_argument(dest='versions', help="Git diff version specification")
     return parser
 
