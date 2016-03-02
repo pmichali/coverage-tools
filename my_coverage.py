@@ -31,46 +31,69 @@ import subprocess
 
 file_re = re.compile(r'diff --git a/(\S+)')
 diff_region_re = re.compile(r'@@\s[-]\S+\s[+](\S+)\s@@')
+source_line_re = re.compile(r'<p id="t(\d+)" class="([^"]+)"')
 
 
 class DiffCollectionFailed(Exception):
     pass
 
 
-def check_coverage(root, coverage_file, line_ranges):
-    """Check the lines in coverage file and report coverage status."""
-    pass
+class SourceLine(object):
+
+    def __init__(self, line_number, is_context=True):
+        self.line_number = line_number
+        self.is_context = is_context
+        self.code = ''
+        self.status = '???'
+
+    def __eq__(self, other):
+        return (self.line_number == other.line_number and
+                self.is_context == other.is_context)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __repr__(self):
+        return "SourceLine(line_number=%d, is_context=%s)" % (self.line_number,
+                                                              self.is_context)
 
 
-def coverage_file_name(source_file):
-    return source_file.replace('/', '_').replace('.', '_') + ".html"
+class SourceModule(object):
+
+    def __init__(self, filename, lines):
+        self.filename = filename
+        self.lines = lines
+        self.cover_file = (filename.replace('/', '_').replace('.', '_') +
+                           ".html")
 
 
-def make_ranges(lines):
-    """Convert list of lines into list of line range tuples.
-
-    Only will be called if there is one or more entries in the list. Single
-    lines, will be coverted into tuple with same line.
-    """
-    start_line = last_line = lines.pop(0)
-    ranges = []
+def check_coverage_for_lines(coverage_info, lines):
+    results = {}
     for line in lines:
-        if line == (last_line + 1):
-            last_line = line
-        else:
-            ranges.append((start_line, last_line))
-            start_line = line
-            last_line = line
-    ranges.append((start_line, last_line))
-    return ranges
+        m = source_line_re.match(str(line.line_number))
+        if m:
+            line_num = m.group(1)
+            line_type = m.group(2)
+            print(line_num, line_type)
+    return []
+
+
+def check_coverage_file(root, module):
+    """Check the lines in coverage file and report coverage status."""
+    report_file = os.path.join(root, 'cover', module.cover_file)
+    if not os.path.isfile(report_file):
+        print("WARNING! No coverage file for %s/%s", root, module.filename)
+    with open(report_file) as coverage_info:
+        results = check_coverage_for_ranges(coverage_info,
+                                            module.coverage_lines)
+        print(results)
 
 
 def collect_diff_lines(diff_region, start, last):
-    """Find added lines in a diff region.
+    """Find added and context lines in a diff region.
 
-    Note: If the region is the last in the file, it may not have a
-    trailing context line, so always check, even if there is one or two
-    lines.
+    Note: If the diff region is at the start or end of the file, there
+    may not be context lines.
     """
     lines = []
     line_num = start
@@ -78,15 +101,14 @@ def collect_diff_lines(diff_region, start, last):
         line = diff_region.next()
         if line.startswith('-'):
             continue
-        if line.startswith('+'):
-            lines.append(line_num)
+        lines.append(SourceLine(line_num, is_context=line.startswith(' ')))
         line_num += 1
     return lines
 
 
 def parse_diffs(diff_output):
     """Collect the file and ranges of diffs added, if any."""
-    diff_ranges = []
+    added_lines = []
     source_file = ''
     diff_lines = iter(diff_output.splitlines())
     for line in diff_lines:
@@ -102,24 +124,23 @@ def parse_diffs(diff_output):
                 last = start + int(num) - 1
             else:
                 last = start
-            added_lines = collect_diff_lines(diff_lines, start, last)
-            if added_lines:
-                diff_ranges += make_ranges(added_lines)
-    return (source_file, diff_ranges)
+            added_lines += collect_diff_lines(diff_lines, start, last)
+    return (source_file, added_lines)
 
 
-def collect_diffs_for_files(root, versions, files):
+def collect_diffs_for_files(root, versions, source_files):
     """Generator to obtain the diffs for files."""
     os.chdir(root)
-    for a_file in files:
-        command = ['git', 'diff', '-U1', '-w', versions, '--', a_file]
+    for filename in source_files:
+        command = ['git', 'diff', '-U3', '-w', versions, '--', filename]
         p = subprocess.Popen(command,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = p.communicate()
+        diff_lines, err = p.communicate()
         if err:
-            raise DiffCollectionFailed("Unable to collect diffs for "
-                                       "file %s/%s: %s" % (root, a_file, err))
-        yield out
+            raise DiffCollectionFailed(
+                "Unable to collect diffs for file %s/%s: %s" %
+                (root, filename, err))
+        yield diff_lines
 
 
 def collect_diff_files(root, versions):
@@ -132,8 +153,9 @@ def collect_diff_files(root, versions):
     if err:
         raise DiffCollectionFailed("Unable to find diff files to examine "
                                    "in %s: %s" % (root, err))
-    for line in out.splitlines():
-        yield line
+    for filename in out.splitlines():
+        if not os.path.basename(filename).startswith('.'):
+            yield filename
 
 
 def main(args):
@@ -146,8 +168,9 @@ def main(args):
     files = collect_diff_files(args.root, args.versions)
     diff_files = collect_diffs_for_files(args.root, args.versions, files)
     for diffs in diff_files:
-        source_file, line_ranges = parse_diffs(diffs)
-        check_coverage(args.root, source_file, line_ranges)
+        source_file, lines = parse_diffs(diffs)
+        module = SourceModule(source_file, lines)
+        check_coverage_file(args.root, module)
 
 
 def setup_parser():
@@ -155,7 +178,9 @@ def setup_parser():
         description='Determine ownership for file or tree of files.')
     parser.add_argument(dest='root', metavar='repo-dir',
                         help="Root of Git repo")
-    # TODO(pcm): Use -v {commit|working|"string spec"}
+    # TODO(pcm): Use --version {latest|working|"string spec"}
+    # TODO(pcm): --details, show lines of code
+    # TODO(pcm): Restore use of 3 context lines for output (--context)
     parser.add_argument(dest='versions', help="Git diff version specification")
     return parser
 
