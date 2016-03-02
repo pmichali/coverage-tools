@@ -68,9 +68,8 @@ class SourceModule(object):
 
 
 def check_coverage_for_lines(coverage_info, lines):
-    results = {}
-    for line in lines:
-        m = source_line_re.match(str(line.line_number))
+    for coverage_line in coverage_info:
+        m = source_line_re.match(coverage_line)
         if m:
             line_num = m.group(1)
             line_type = m.group(2)
