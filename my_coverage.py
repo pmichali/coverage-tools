@@ -31,7 +31,8 @@ import subprocess
 
 file_re = re.compile(r'diff --git a/(\S+)')
 diff_region_re = re.compile(r'@@\s[-]\S+\s[+](\S+)\s@@')
-source_line_re = re.compile(r'<p id="t(\d+)" class="([^"]+)"')
+source_line_re = re.compile(r'<p id="n(\d+)" class="([^"]+)"')
+summary_end_re = re.compile(r'\s+<td class="text">')
 
 
 class DiffCollectionFailed(Exception):
@@ -40,10 +41,10 @@ class DiffCollectionFailed(Exception):
 
 class SourceLine(object):
 
-    def __init__(self, line_number, is_context=True):
+    def __init__(self, line_number, is_context=True, code=''):
         self.line_number = line_number
         self.is_context = is_context
-        self.code = ''
+        self.code = code
         self.status = '???'
 
     def __eq__(self, other):
@@ -60,21 +61,35 @@ class SourceLine(object):
 
 class SourceModule(object):
 
+    status_map = {'pln': '   ',
+                  'stm run': 'run',
+                  'stm mis': 'mis',
+                  'stm par': 'par'}
     def __init__(self, filename, lines):
         self.filename = filename
         self.lines = lines
+        self.line_num_map = {l.line_number: l for l in lines}
         self.cover_file = (filename.replace('/', '_').replace('.', '_') +
                            ".html")
 
+    def update_line_status(self, line_number, status):
+        if line_number in self.line_num_map:
+            line = self.line_num_map[line_number]
+            if status.startswith('pln'):
+                line.status = '   '
+            else:
+                line.status = status[4:7]
 
-def check_coverage_for_lines(coverage_info, lines):
-    for coverage_line in coverage_info:
+
+def check_coverage_status(coverage_info, module):
+    for coverage_line in coverage_info.splitlines():
+        if summary_end_re.match(coverage_line):
+            return
         m = source_line_re.match(coverage_line)
         if m:
-            line_num = m.group(1)
-            line_type = m.group(2)
-            print(line_num, line_type)
-    return []
+            line_num = int(m.group(1))
+            status = m.group(2)
+            module.update_line_status(line_num, status)
 
 
 def check_coverage_file(root, module):
@@ -83,8 +98,7 @@ def check_coverage_file(root, module):
     if not os.path.isfile(report_file):
         print("WARNING! No coverage file for %s/%s", root, module.filename)
     with open(report_file) as coverage_info:
-        results = check_coverage_for_ranges(coverage_info,
-                                            module.coverage_lines)
+        results = check_coverage_status(coverage_info, module)
         print(results)
 
 
@@ -100,7 +114,8 @@ def collect_diff_lines(diff_region, start, last):
         line = diff_region.next()
         if line.startswith('-'):
             continue
-        lines.append(SourceLine(line_num, is_context=line.startswith(' ')))
+        lines.append(SourceLine(line_num, is_context=line.startswith(' '),
+                                code=line[1:]))
         line_num += 1
     return lines
 

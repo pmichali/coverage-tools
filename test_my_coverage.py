@@ -1,6 +1,6 @@
 import pytest
 
-from my_coverage import check_coverage_for_lines
+from my_coverage import check_coverage_status
 from my_coverage import parse_diffs
 from my_coverage import SourceLine
 from my_coverage import SourceModule
@@ -21,7 +21,7 @@ def test_extract_no_added_line_diffs():
     assert lines == expected
 
 
-def test_extract_single_line_diff():
+def test_extract_single_added_line():
     diffs = """diff --git a/path/file.py b/path/file.py
 index 0fa872e..77ebfef 100644
 --- a/path/file.py
@@ -43,6 +43,13 @@ index 0fa872e..77ebfef 100644
     ]
     assert source_file == 'path/file.py'
     assert lines == expected
+    assert lines[0].code == "INSTANCE_PC = 'testpcvm'"
+    assert lines[1].code == "INSTANCE_DUAL = 'testdualvm'"
+    assert lines[2].code == ""
+    assert lines[3].code == "NEXUS_BAREMETAL_PORT_1 = 'Ethernet 1/10'"
+    assert lines[4].code == "NEXUS_PORT_1 = 'ethernet:1/10'"
+    assert lines[5].code == "NEXUS_PORT_2 = 'ethernet:1/20'"
+    assert lines[6].code == "NEXUS_DUAL1 = 'ethernet:1/3'"
 
 
 def test_extract_multiple_lines():
@@ -153,40 +160,52 @@ def test_determine_coverage_file_name():
     assert module.cover_file == 'relative_path_to_file_py.html'
 
 
+def test_update_status_line():
+    line = SourceLine(10, is_context=False)
+    module = SourceModule('foo', [line])
+    module.update_line_status(10, 'pln')
+    assert line.status == '   '
+    module.update_line_status(10, 'stm run')
+    assert line.status == 'run'
+    module.update_line_status(10, 'stm mis')
+    assert line.status == 'mis'
+    module.update_line_status(10, 'stm par')
+    assert line.status == 'par'
+
+
+def test_fail_update_status_no_matching_line():
+    line = SourceLine(10, is_context=False)
+    module = SourceModule('foo', [line])
+    module.update_line_status(12, 'stm run')
+    assert line.status == '???'
+
+
 def test_check_coverage_no_lines():
     coverage_info = """
 <p id="n1" class="pln"><a href="#n1">1</a></p>
 <p id="n2" class="pln"><a href="#n2">2</a></p>
 <p id="n3" class="pln"><a href="#n3">3</a></p>
 """
-    lines = []
-    updated_lines = check_coverage_for_lines(coverage_info, lines)
-    assert updated_lines == lines
+    module = SourceModule('foo.py', [])
+    check_coverage_status(coverage_info, module)
+    assert module.lines == []
 
 
-def test_check_coverage_multiple_ranges():
-    pass
-
-
-def test_coverage_missing():
+def test_coverage_updating():
     coverage_info = """
-<p id="t134" class="pln"><span class="strut">&nbsp;</span></p>
-<p id="t135" class="stm mis">&nbsp; &nbsp; &nbsp; &nbsp; <span class="key">return</span> <span class="nam">handle</span><span class="strut">&nbsp;</span></p>
-<p id="t136" class="pln"><span class="strut">&nbsp;</span></p>
+<p id="n63" class="pln"><a href="#n63">63</a></p>
+<p id="n64" class="stm par run hide_run"><a href="#n64">64</a></p>
+<p id="n65" class="stm mis"><a href="#n65">65</a></p>
+<p id="n66" class="stm run hide_run"><a href="#n66">66</a></p>
 """
-    lines = [SourceLine(135, is_context=False)]
-    check_coverage_for_lines(coverage_info, lines)
-    assert lines[0].status == 'mis'
-    assert lines[0].code == '    return handle '
-
-
-def test_coverage_partial():
-    pass
-
-
-def test_coverage_ok():
-    pass
-
-
-def test_coverage_context_line():
-    pass
+    non_executable_line = SourceLine(63)
+    partial_covered_line = SourceLine(64, is_context=False)
+    missing_line = SourceLine(65, is_context=False)
+    covered_line = SourceLine(66, is_context=False)
+    module = SourceModule('foo.py', [non_executable_line, partial_covered_line,
+                                     missing_line, covered_line])
+    check_coverage_status(coverage_info, module)
+    assert non_executable_line.status == '   '
+    assert partial_covered_line.status == 'par'
+    assert missing_line.status == 'mis'
+    assert covered_line.status == 'run'
