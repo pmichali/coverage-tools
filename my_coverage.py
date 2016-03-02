@@ -1,26 +1,50 @@
 #!/usr/bin/env python
 # my_coverage
 #
-# Indicates the coverage, for lines from the current working directory. It
-# assumes that coverage was run on this latest code, and will compare to
-# HEAD or HEAD^ (in case you've committed the changes).
+# Indicates the coverage for diffs specified in the command. It assumes that
+# coverage was run before using this tool (and report should be on what is
+# in the repo currently).
 #
 # Usage:
-#    my_coverage.py [-h] repo-dir diff-versions
+#    my_coverage.py [-h] [-c CONTEXT] [-w WHICH] repo-dir
 # Where:
 # -h, --help     Show this help message and exit.
-# repo-dir       Base directory for the Git repo.
-# diff-versions  Commit information to use for diff.
+# -c CONTEXT, --context CONTEXT
+#                       Number of context lines around diff regions.
+#                       Default=3.
+# -w COMMITS, --which COMMITS
+#                       Which commit(s) to compare. Use 'working', 'commit',
+#                       or custom commit specification. Latest should be same
+#                       as cover run. Default='working'.
 #
-# For the diff versions, this should be the input needed to compare
-# the changes corresponding to the coverage run data previously collected,
-# and previous version.
+# For the commit selection, you want the latest to match what the coverage
+# was done on. This translates into the commit specification for 'git diff'.
+# If you have uncommitted changes, you can use (the default) 'working',
+# which will use 'HEAD'. If you've already committed, you can use 'commit',
+# which will use 'HEAD^'. Otherwise, you can use any valid 'git diff' commit
+# specification. Just make sure that the newer commit must match what was
+# used in the coverage report created.
 #
-# For committed changes, you can specify 'HEAD^'. For changes that have
-# not been committed yet (staged/unstaged), you can specify 'HEAD'.
+# You can adjust the number of lines of context surrounding the diff lines,
+# just as is done with 'git diff'.
 #
-# The output will show the coverage status of lines from the diff, for
-# each of the modules.
+# The output will show each file from the diffs along with a report on
+# the coverage. Each line (including surrounding context lines) with line
+# number, coverage indication, diff indication, and the source line.
+#
+# The coverage indication is 'run' meaning the line is covered, 'mis'
+# meaning the line is missing coverage, 'par' meaning the line is partially
+# covered, or '   ' meaning the line is ignored w.r.t. coverage.
+#
+# There is a summary of covered, missing, partial, and ignored lines
+# that were added/changed (only - no context lines).
+#
+# The diff indication will be a '+' for lines added/changed by the diff,
+# or ' ' for context lines. Note: if a diff is at the start or end of a
+# file, there may not be coverage lines.
+#
+# If the file was not exercised as part of coverage, or if the file did
+# not have any added/changed lines, it will be indicated.
 
 from __future__ import print_function
 
@@ -161,11 +185,12 @@ def parse_diffs(diff_output):
     return (source_file, added_lines)
 
 
-def collect_diffs_for_files(root, versions, source_files):
+def collect_diffs_for_files(root, versions, source_files, context_lines):
     """Generator to obtain the diffs for files."""
     os.chdir(root)
     for filename in source_files:
-        command = ['git', 'diff', '-U3', '-w', versions, '--', filename]
+        command = ['git', 'diff', '-U%d' % context_lines,
+                   '-w', versions, '--', filename]
         p = subprocess.Popen(command,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         diff_lines, err = p.communicate()
@@ -191,15 +216,26 @@ def collect_diff_files(root, versions):
             yield filename
 
 
-def main(args):
+def validate(parser, provided_args=None):
+    args = parser.parse_args(provided_args)
     args.root = os.path.abspath(args.root)
     if not os.path.isdir(args.root):
         parser.error("The repo-dir must be a directory pointing to the top "
                      "of the Git repo")
     if not os.path.isdir(os.path.join(args.root, 'cover')):
         parser.error("Missing cover directory for project")
-    files = collect_diff_files(args.root, args.versions)
-    diff_files = collect_diffs_for_files(args.root, args.versions, files)
+    if args.commits == 'working':
+        args.commits = 'HEAD'
+    elif args.commits == 'commit':
+        args.commits = 'HEAD^'
+    return args
+
+
+def main(parser):
+    args = validate(parser)
+    files = collect_diff_files(args.root, args.commits)
+    diff_files = collect_diffs_for_files(args.root, args.commits, files,
+                                         args.context)
     for diffs in diff_files:
         source_file, lines = parse_diffs(diffs)
         module = SourceModule(source_file, lines)
@@ -209,14 +245,18 @@ def main(args):
 def setup_parser():
     parser = argparse.ArgumentParser(
         description='Determine ownership for file or tree of files.')
+    parser.add_argument(
+        '-c', '--context', action='store', type=int, default=3,
+        help='Number of context lines around diff regions. Default=3.')
+    parser.add_argument(
+        '-w', '--which', action='store', default="working", dest='commits',
+        help="Which commit(s) to compare. Use 'working', 'commit', or "
+        "custom commit specification. Latest should be same as cover run. "
+        "Default='working'.")
     parser.add_argument(dest='root', metavar='repo-dir',
                         help="Root of Git repo")
-    # TODO(pcm): Use --version {latest|working|"string spec"}
-    # TODO(pcm): --details, show lines of code
-    parser.add_argument(dest='versions', help="Git diff version specification")
     return parser
 
 
 if __name__ == "__main__":
-    parser = setup_parser()
-    main(parser.parse_args())
+    main(setup_parser())

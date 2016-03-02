@@ -123,7 +123,6 @@ my_coverage
 
 TODOs:
 
-- Run coverage and mock to test more methods
-- New CLI args for my_coverage to allow more options (--details, --version)
+- Run coverage and mock to test more methods (coverage and whodunit)
 - Push up to GitHub
-- Document my_coverage
+- Document my_coverage HERE

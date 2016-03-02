@@ -1,9 +1,14 @@
+import os
 import pytest
+import shutil
+import tempfile
 
 from my_coverage import check_coverage_status
 from my_coverage import parse_diffs
+from my_coverage import setup_parser
 from my_coverage import SourceLine
 from my_coverage import SourceModule
+from my_coverage import validate
 
 
 def test_extract_no_added_line_diffs():
@@ -148,10 +153,39 @@ index 0000000..257cc56
 """
     source_file, lines = parse_diffs(diffs)
     assert source_file == 'dummy'
-    assert lines == [SourceLine(1, False)]
+    assert lines == [SourceLine(1, is_context=False)]
 
 
-# TODO(pcm): Tests of input validation and parsing of args
+def test_extract_no_context_no_added_lines():
+    """Context is set to zero and there are no added lines."""
+    diffs = """diff --git a/dummy b/dummy
+index 7a47da8..7ee1d92 100644
+--- a/dummy
++++ b/dummy
+@@ -65 +35,0 @@ check_pot_files_errors () {
+-check_opinionated_shell
+"""
+    source_file, lines = parse_diffs(diffs)
+    assert source_file == 'dummy'
+    assert lines == []
+
+
+def test_extract_one_line_deleted_and_added():
+    """Special case where both diff markers have no commas.
+
+    Indicates that one line deleted and one line added.
+    """
+    diffs = """diff --git a/devstack/saf/cisco_saf b/devstack/saf/cisco_saf
+index 2498062..efcc602 100644
+--- a/devstack/saf/cisco_saf
++++ b/devstack/saf/cisco_saf
+@@ -1 +1 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+"""
+    source_file, lines = parse_diffs(diffs)
+    assert source_file == 'devstack/saf/cisco_saf'
+    assert lines == [SourceLine(1, is_context=False)]
 
 
 def test_determine_coverage_file_name():
@@ -258,3 +292,64 @@ def test_report_multiple_blocks():
    21     +    for i in range(5)
 """
     assert module.report() == expected
+
+
+@pytest.fixture()
+def fake_cover_project(request):
+    cover_project_area = tempfile.mkdtemp()
+    cwd = os.getcwd()
+    os.chdir(cover_project_area)
+    os.mkdir('cover')
+    os.chdir(cwd)
+
+    def fin():
+        shutil.rmtree(cover_project_area)
+    request.addfinalizer(fin)
+    return cover_project_area
+
+
+@pytest.fixture()
+def fake_project(request):
+    project_area = tempfile.mkdtemp()
+
+    def fin():
+        shutil.rmtree(project_area)
+    request.addfinalizer(fin)
+    return project_area
+
+
+def test_argument_parse_which(fake_cover_project):
+    parser = setup_parser()
+    args = validate(parser, [fake_cover_project])
+    assert args.commits == 'HEAD'
+    args = validate(parser, ['-w', 'working', fake_cover_project])
+    assert args.commits == 'HEAD'
+    args = validate(parser, ['-w', 'commit', fake_cover_project])
+    assert args.commits == 'HEAD^'
+    args = validate(parser, ['-w', 'HEAD~5..HEAD~3', fake_cover_project])
+    assert args.commits == 'HEAD~5..HEAD~3'
+
+
+def test_argument_parse_context(fake_cover_project):
+    parser = setup_parser()
+    args = validate(parser, ['-c', '10', fake_cover_project])
+    assert args.context == 10
+
+
+def test_validate_directory(fake_cover_project):
+    parser = setup_parser()
+    assert validate(parser, [fake_cover_project])
+
+
+def test_validate_no_coverage_area(fake_project):
+    parser = setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        validate(parser, [fake_project])
+    assert str(excinfo.value) == '2'
+
+
+def test_validate_no_directory():
+    parser = setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        validate(parser, ['bogus-dir'])
+    assert str(excinfo.value) == '2'
