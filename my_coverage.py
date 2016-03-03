@@ -125,7 +125,7 @@ class SourceModule(object):
 
 def check_coverage_status(coverage_info, module):
     for coverage_line in coverage_info:
-        m= title_re.match(coverage_line)
+        m = title_re.match(coverage_line)
         if m:
             module.coverage = m.group(1)
             continue
@@ -245,6 +245,7 @@ def main(parser):
         module = SourceModule(source_file, lines)
         check_coverage_file(args.root, module)
         print(module.report())
+
 
 def setup_parser():
     parser = argparse.ArgumentParser(

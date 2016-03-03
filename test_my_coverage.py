@@ -1,14 +1,44 @@
+import mock
 import os
 import pytest
 import shutil
+import subprocess
 import tempfile
 
+from my_coverage import check_coverage_file
 from my_coverage import check_coverage_status
+from my_coverage import collect_diff_files
+from my_coverage import collect_diffs_for_files
+from my_coverage import DiffCollectionFailed
 from my_coverage import parse_diffs
 from my_coverage import setup_parser
 from my_coverage import SourceLine
 from my_coverage import SourceModule
 from my_coverage import validate
+
+
+@pytest.fixture()
+def fake_cover_project(request):
+    cover_project_area = tempfile.mkdtemp()
+    cwd = os.getcwd()
+    os.chdir(cover_project_area)
+    os.mkdir('cover')
+    os.chdir(cwd)
+
+    def fin():
+        shutil.rmtree(cover_project_area)
+    request.addfinalizer(fin)
+    return cover_project_area
+
+
+@pytest.fixture()
+def fake_project(request):
+    project_area = tempfile.mkdtemp()
+
+    def fin():
+        shutil.rmtree(project_area)
+    request.addfinalizer(fin)
+    return project_area
 
 
 def test_extract_no_added_line_diffs():
@@ -188,6 +218,68 @@ index 2498062..efcc602 100644
     assert lines == [SourceLine(1, is_context=False)]
 
 
+def test_collecting_diffs(monkeypatch):
+    with mock.patch.object(subprocess, 'Popen', create=True) as popen:
+        popen.return_value.communicate.side_effect = [('output1', ''),
+                                                      ('output2', '')]
+        monkeypatch.setattr('os.chdir', lambda x: None)
+        diffs = collect_diffs_for_files('/some/path', versions="HEAD",
+                                        source_files=['foo', 'bar'],
+                                        context_lines=5)
+        assert list(diffs) == ['output1', 'output2']
+
+    expected = [
+        mock.call(['git', 'diff', '-U5', '-w', 'HEAD', '--', 'foo'],
+                  stderr=-1, stdout=-1),
+        mock.call().communicate(),
+        mock.call(['git', 'diff', '-U5', '-w', 'HEAD', '--', 'bar'],
+                  stderr=-1, stdout=-1),
+        mock.call().communicate()
+    ]
+    assert popen.call_count == 2
+    popen.assert_has_calls(expected)
+
+
+def test_fail_collecting_diffs(monkeypatch):
+    with mock.patch.object(subprocess, 'Popen', create=True) as popen:
+        popen.return_value.communicate.return_value = ('', 'bad file')
+        monkeypatch.setattr('os.chdir', lambda x: None)
+
+        diffs = collect_diffs_for_files('/some/path', versions="HEAD",
+                                        source_files=['foo'],
+                                        context_lines=5)
+        with pytest.raises(DiffCollectionFailed) as excinfo:
+            for diff in diffs:
+                pass
+        expected_msg = ('Unable to collect diffs for file /some/path/foo: '
+                        'bad file')
+        assert excinfo.value.message == expected_msg
+
+
+def test_collecting_diff_files(monkeypatch):
+    with mock.patch.object(subprocess, 'Popen', create=True) as popen:
+        popen.return_value.communicate.return_value = (
+            'foo.py\n.ignored-file\nbar.py\n', '')
+        monkeypatch.setattr('os.chdir', lambda x: None)
+
+        diff_files = collect_diff_files(fake_project, 'HEAD')
+        assert list(diff_files) == ['foo.py', 'bar.py']
+
+
+def test_fail_collecting_diff_files(monkeypatch):
+    with mock.patch.object(subprocess, 'Popen', create=True) as popen:
+        popen.return_value.communicate.return_value = ('foo.py', 'no file')
+        monkeypatch.setattr('os.chdir', lambda x: None)
+        
+        diff_files = collect_diff_files('/some/path', 'HEAD')
+        with pytest.raises(DiffCollectionFailed) as excinfo:
+            for diff_file in diff_files:
+                pass
+        expected_msg = ('Unable to find diff files to examine in '
+                        '/some/path: no file')
+        assert excinfo.value.message == expected_msg
+
+
 def test_determine_coverage_file_name():
     filename = "relative/path/to/file.py"
     module = SourceModule(filename, lines=[])
@@ -225,12 +317,18 @@ def test_check_coverage_no_lines():
     assert module.lines == []
 
 
-def test_coverage_updating():
+def test_coverage_status_collection():
     coverage_info = """
+...
+<title>Coverage for foo.py: 81%</title>
+...
 <p id="n63" class="pln"><a href="#n63">63</a></p>
 <p id="n64" class="stm par run hide_run"><a href="#n64">64</a></p>
 <p id="n65" class="stm mis"><a href="#n65">65</a></p>
 <p id="n66" class="stm run hide_run"><a href="#n66">66</a></p>
+...
+            </td>
+            <td class="text">
 """.splitlines()
     non_executable_line = SourceLine(63)
     partial_covered_line = SourceLine(64, is_context=False)
@@ -243,6 +341,39 @@ def test_coverage_updating():
     assert partial_covered_line.status == 'par'
     assert missing_line.status == 'mis'
     assert covered_line.status == 'run'
+    assert module.coverage == '81%'
+
+
+def test_missing_coverage_file(fake_cover_project):
+    module = SourceModule('foo.py', [])
+    check_coverage_file(fake_cover_project, module)
+    assert not module.have_report
+
+
+def test_checking_coverage_file(monkeypatch):
+    coverage_info = """
+...
+<title>Coverage for foo.py: 5%</title>
+...
+<p id="n2" class="stm run"><a href="#n2">2</a></p>
+...
+            </td>
+            <td class="text">
+""".splitlines()
+    line = SourceLine(2, is_context=False)
+    module = SourceModule('foo.py', [line])
+
+    def is_a_file(filename):
+        return True
+    monkeypatch.setattr(os.path, 'isfile', is_a_file)
+
+    with mock.patch('__builtin__.open',
+                    mock.mock_open(), create=True) as mock_open:
+        mock_open.return_value.readlines.return_value = coverage_info
+        check_coverage_file('.', module)
+    assert module.have_report
+    assert line.status == 'run'
+    assert module.coverage == '5%'
 
 
 def test_report_non_coverage_files():
@@ -294,30 +425,6 @@ def test_report_multiple_blocks():
    21     +    for i in range(5)
 """
     assert module.report() == expected
-
-
-@pytest.fixture()
-def fake_cover_project(request):
-    cover_project_area = tempfile.mkdtemp()
-    cwd = os.getcwd()
-    os.chdir(cover_project_area)
-    os.mkdir('cover')
-    os.chdir(cwd)
-
-    def fin():
-        shutil.rmtree(cover_project_area)
-    request.addfinalizer(fin)
-    return cover_project_area
-
-
-@pytest.fixture()
-def fake_project(request):
-    project_area = tempfile.mkdtemp()
-
-    def fin():
-        shutil.rmtree(project_area)
-    request.addfinalizer(fin)
-    return project_area
 
 
 def test_argument_parse_which(fake_cover_project):
