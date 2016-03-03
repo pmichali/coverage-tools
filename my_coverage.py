@@ -13,7 +13,7 @@
 #                       Number of context lines around diff regions.
 #                       Default=3.
 # -w COMMITS, --which COMMITS
-#                       Which commit(s) to compare. Use 'working', 'commit',
+#                       Which commit(s) to compare. Use 'working', 'committed',
 #                       or custom commit specification. Latest should be same
 #                       as cover run. Default='working'.
 #
@@ -57,6 +57,7 @@ import subprocess
 file_re = re.compile(r'diff --git a/(\S+)')
 diff_region_re = re.compile(r'@@\s[-]\S+\s[+](\S+)\s@@')
 source_line_re = re.compile(r'<p id="n(\d+)" class="([^"]+)"')
+title_re = re.compile(r'\s*<title>Coverage for [^:]+:\s+(\d+%)<\/title>')
 summary_end_re = re.compile(r'\s+<td class="text">')
 
 
@@ -76,9 +77,6 @@ class SourceLine(object):
         return (self.line_number == other.line_number and
                 self.is_context == other.is_context)
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
     def __repr__(self):
         return "SourceLine(line_number=%d, is_context=%s)" % (self.line_number,
                                                               self.is_context)
@@ -93,6 +91,7 @@ class SourceModule(object):
         self.cover_file = (filename.replace('/', '_').replace('.', '_') +
                            ".html")
         self.have_report = False
+        self.coverage = '??%'
 
     def update_line_status(self, line_number, status):
         if line_number in self.line_num_map:
@@ -109,8 +108,9 @@ class SourceModule(object):
         if not self.lines or all(l.is_context for l in self.lines):
             return "%s (No added/changed lines)\n" % output
         stats = Counter([l.status for l in self.lines if not l.is_context])
-        output += " (run={}, mis={}, par={}, ign={})\n".format(
-            stats['run'], stats['mis'], stats['par'], stats['   '])
+        output += " (run={}, mis={}, par={}, ign={}) {}\n".format(
+            stats['run'], stats['mis'], stats['par'], stats['   '],
+            self.coverage)
         last_line = None
         for line in self.lines:
             if last_line and line.line_number != (last_line + 1):
@@ -125,6 +125,10 @@ class SourceModule(object):
 
 def check_coverage_status(coverage_info, module):
     for coverage_line in coverage_info:
+        m= title_re.match(coverage_line)
+        if m:
+            module.coverage = m.group(1)
+            continue
         if summary_end_re.match(coverage_line):
             return
         m = source_line_re.match(coverage_line)
@@ -226,8 +230,8 @@ def validate(parser, provided_args=None):
         parser.error("Missing cover directory for project")
     if args.commits == 'working':
         args.commits = 'HEAD'
-    elif args.commits == 'commit':
-        args.commits = 'HEAD^'
+    elif args.commits == 'committed':
+        args.commits = 'HEAD^..HEAD'
     return args
 
 

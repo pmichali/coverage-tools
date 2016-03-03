@@ -265,8 +265,9 @@ def test_report_one_line():
     line = SourceLine(10, is_context=False, code='    x = 1')
     module = SourceModule('path/foo.py', [line])
     module.have_report = True
+    module.coverage = '100%'
     line.status = 'run'
-    expected = """path/foo.py (run=1, mis=0, par=0, ign=0)
+    expected = """path/foo.py (run=1, mis=0, par=0, ign=0) 100%
    10 run +    x = 1
 """
     assert module.report() == expected
@@ -283,8 +284,9 @@ def test_report_multiple_blocks():
     lines[3].status = '   '
     module = SourceModule('path/foo.py', lines)
     module.have_report = True
+    module.coverage = '50%'
 
-    expected = """path/foo.py (run=1, mis=1, par=1, ign=1)
+    expected = """path/foo.py (run=1, mis=1, par=1, ign=1) 50%
    10 run +    x = 1
    11 mis +    y = 2
 
@@ -324,8 +326,8 @@ def test_argument_parse_which(fake_cover_project):
     assert args.commits == 'HEAD'
     args = validate(parser, ['-w', 'working', fake_cover_project])
     assert args.commits == 'HEAD'
-    args = validate(parser, ['-w', 'commit', fake_cover_project])
-    assert args.commits == 'HEAD^'
+    args = validate(parser, ['-w', 'committed', fake_cover_project])
+    assert args.commits == 'HEAD^..HEAD'
     args = validate(parser, ['-w', 'HEAD~5..HEAD~3', fake_cover_project])
     assert args.commits == 'HEAD~5..HEAD~3'
 
