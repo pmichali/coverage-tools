@@ -1,7 +1,8 @@
-import collections
 import copy
+import mock
+import os
 import pytest
-import StringIO
+import subprocess
 import whodunit
 from whodunit import CoverageOwners
 from whodunit import DateOwners
@@ -696,3 +697,43 @@ def test_last_commit_part_of_contiguous_region():
     actual_commits = owners.sort()
     assert len(actual_commits) == 1
     assert actual_commits[0].lines == '1-3'
+
+
+def test_is_git_file():
+    with mock.patch.object(subprocess, 'Popen', create=True) as popen:
+        popen.return_value.returncode = 0
+        assert Owners.is_git_file('.', 'foo.py')
+    expected = [mock.call(['git', 'ls-files', '--error-unmatch', 'foo.py'],
+                          stderr=-1, stdout=-1)]
+    assert popen.call_count == 1
+    popen.assert_has_calls(expected)
+
+
+def test_is_not_git_file():
+    with mock.patch.object(subprocess, 'Popen', create=True) as popen:
+        popen.return_value.returncode = 1
+        assert not Owners.is_git_file('.', 'foo.py')
+    expected = [mock.call(['git', 'ls-files', '--error-unmatch', 'foo.py'],
+                          stderr=-1, stdout=-1)]
+    assert popen.call_count == 1
+    popen.assert_has_calls(expected)
+
+
+def test_collecting_modules(monkeypatch):
+    owners = Owners('/some/path')
+
+    with mock.patch('os.walk') as walker:
+        walker.return_value = [('/some/path', (), ('foo.py', 'bar.py')), ]
+
+        def is_git(cls, path, name):
+            return True
+        monkeypatch.setattr(Owners, 'is_git_file', is_git)
+
+        modules = owners.collect_modules()
+        expected = [('/some/path/foo.py', []), ('/some/path/bar.py', [])]
+        assert list(modules) == expected
+
+
+def tests_filtering_modules(monkeypatch):
+    pass
+

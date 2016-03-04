@@ -257,6 +257,7 @@ def test_fail_collecting_diffs(monkeypatch):
 
 
 def test_collecting_diff_files(monkeypatch):
+    """Ignores files with leading period."""
     with mock.patch.object(subprocess, 'Popen', create=True) as popen:
         popen.return_value.communicate.return_value = (
             'foo.py\n.ignored-file\nbar.py\n', '')
