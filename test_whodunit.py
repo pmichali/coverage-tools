@@ -735,5 +735,16 @@ def test_collecting_modules(monkeypatch):
 
 
 def tests_filtering_modules(monkeypatch):
-    pass
+    owners = Owners('/some/path', filter="*.py")
+
+    with mock.patch('os.walk') as walker:
+        walker.return_value = [('/some/path', (), ('a.py', 'skip', 'b.py')), ]
+
+        def is_git(cls, path, name):
+            return True
+        monkeypatch.setattr(Owners, 'is_git_file', is_git)
+
+        modules = owners.collect_modules()
+        expected = [('/some/path/a.py', []), ('/some/path/b.py', [])]
+        assert list(modules) == expected
 
