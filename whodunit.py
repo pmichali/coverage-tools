@@ -178,6 +178,8 @@ class Owners(object):
         old_area = None
         for filename, ranges in matches:
             area, name = os.path.split(filename)
+            if not area:
+                area = '.'
             if area != old_area:
                 print("\n\n%s/\n" % area)
                 old_area = area
@@ -363,8 +365,10 @@ class CoverageOwners(Owners):
         Will verify that the source file is within the project tree, relative
         to the coverage directory.
         """
+        # TODO(pcm): Change to os.listdir(self.root)
         for path, dirlist, filelist in os.walk(self.root):
             for name in fnmatch.filter(filelist, "*.html"):
+                print(name)
                 if name == 'index.html':
                     continue
                 with open(os.path.join(path, name)) as cover_file:
@@ -373,6 +377,7 @@ class CoverageOwners(Owners):
                     continue
                 src_file = os.path.abspath(os.path.join(self.root, '..',
                                                         src_file))
+                print(src_file)
                 if os.path.isfile(src_file):
                     yield (src_file, line_ranges)
                 else:

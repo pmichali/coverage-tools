@@ -8,6 +8,7 @@ from whodunit import CoverageOwners
 from whodunit import DateOwners
 from whodunit import Owners
 from whodunit import SizeOwners
+from whodunit import SourceNotFound
 
 
 line_one = """6e3b3aec8a73da4129e83554ad5ac2f43d4ec775 1813 1794 1794
@@ -748,3 +749,127 @@ def tests_filtering_modules(monkeypatch):
         expected = [('/some/path/a.py', []), ('/some/path/b.py', [])]
         assert list(modules) == expected
 
+
+def test_collecting_blame_info(monkeypatch, capsys):
+    matches = [('path/a.py', [(1, 1)]),
+               ('b.py', [(5, 5), (10, 10)])]
+
+    def dummy_chdir(path):
+        pass
+    monkeypatch.setattr(os, 'chdir', dummy_chdir)
+
+    with mock.patch.object(subprocess, 'Popen', create=True) as popen:
+        popen.return_value.communicate.side_effect = [('blame1', ''),
+                                                      ('blame5+10', '')]
+        blame_info = Owners.collect_blame_info(matches)
+
+        assert list(blame_info) == ['blame1', 'blame5+10']
+    assert popen.call_count == 2
+    expected = [
+        mock.call(['git', 'blame', '--line-porcelain',
+                   '-L 1,1', 'a.py'],
+                  stderr=-1, stdout=-1),
+        mock.call().communicate(),
+        mock.call(['git', 'blame', '--line-porcelain',
+                   '-L 5,5', '-L 10,10', 'b.py'],
+                  stderr=-1, stdout=-1),
+        mock.call().communicate()
+    ]
+    popen.assert_has_calls(expected)
+    out, err = capsys.readouterr()
+    expected = """
+
+path/
+
+a.py 
+
+./
+
+b.py """
+    assert out == expected
+
+
+def test_fail_collecting_blame_info(monkeypatch, capsys):
+    matches = [('path/a.py', [(1, 1)]), ]
+
+    def dummy_chdir(path):
+        pass
+    monkeypatch.setattr(os, 'chdir', dummy_chdir)
+
+    with mock.patch.object(subprocess, 'Popen', create=True) as popen:
+        popen.return_value.communicate.return_value = ('', 'blame fail')
+        blame_info = Owners.collect_blame_info(matches)
+
+        assert list(blame_info) == []
+    assert popen.call_count == 1
+    expected = [
+        mock.call(['git', 'blame', '--line-porcelain',
+                   '-L 1,1', 'a.py'],
+                  stderr=-1, stdout=-1),
+        mock.call().communicate()
+    ]
+    popen.assert_has_calls(expected)
+    out, err = capsys.readouterr()
+    assert out == ("\n\npath/\n\na.py  <<<<<<<<<< Unable to collect 'git "
+                   "blame' info: blame fail\n")
+
+
+def test_collecting_coverage_modules(monkeypatch):
+    """Collecting of files for coverage analysis.
+
+    Note: the root will be the coverage directory (typically 'cover',
+    under the root of the repo tree.
+
+    Note: the index.html file is skipped.
+    """
+
+    def is_a_file(filename):
+        return True
+    monkeypatch.setattr(os.path, 'isfile', is_a_file)
+
+    def my_open(filename):
+        return mock.MagicMock()
+    monkeypatch.setattr('__builtin__.open', my_open)
+
+    coverage_owners = CoverageOwners('/some/repo/cover')
+
+    with mock.patch('os.walk') as walker:
+        walker.return_value = [
+            ('.', (), ('a_py.html', 'index.html', 'path_b_py.html')),
+        ]
+        with mock.patch.object(coverage_owners,
+                               'determine_coverage') as get_cover:
+            get_cover.side_effect = [('a.py', [(1, 1), ]),
+                                     ('path/b.py', [(5, 5), (10, 10)])]
+            modules = coverage_owners.collect_modules()
+            expected = [('/some/repo/a.py', [(1, 1)]),
+                        ('/some/repo/path/b.py', [(5, 5), (10, 10)])]
+            assert list(modules) == expected
+
+
+def test_fail_collecting_coverage_modules(monkeypatch):
+    """Unable to find file corresponding to coverage file."""
+
+    def is_a_file(filename):
+        return False
+    monkeypatch.setattr(os.path, 'isfile', is_a_file)
+
+    def my_open(filename):
+        return mock.MagicMock()
+    monkeypatch.setattr('__builtin__.open', my_open)
+
+    coverage_owners = CoverageOwners('/some/repo/cover')
+
+    with mock.patch('os.walk') as walker:
+        walker.return_value = [
+            ('.', (), ('a_py.html', )),
+        ]
+        with mock.patch.object(coverage_owners,
+                               'determine_coverage') as get_cover:
+            get_cover.side_effect = [('a.py', [(1, 1), ]), ]
+            with pytest.raises(SourceNotFound) as snf:
+                modules = coverage_owners.collect_modules()
+                for module in modules:
+                    pass
+            expected = 'Source file a.py not found at /some/repo'
+            assert snf.value.message == expected
