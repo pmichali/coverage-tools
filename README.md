@@ -61,8 +61,8 @@ default of "--sort date". This looks like this (with verbose on too):
 
 <pre>
     dfa_db_models.py (Paul Michali, Nader Lahouti)
-        4c637f50   306 Paul Michali <pc@michali.net>                      2016-02-12 10:46:20 +0000 Sam Betts <sam@code-smash.net>
-        222f1afb    20 Nader Lahouti <nlahouti@cisco.com>                 2015-10-06 09:51:26 -0700 Nader Lahouti <nlahouti@cisco.com>
+        4c637f50   306 Paul Michali <paul@example.com>                    2016-02-12 10:46:20 +0000 Sam Betts <sam@example.com>
+        222f1afb    20 Nader Lahouti <nader@example.com>                  2015-10-06 09:51:26 -0700 Nader Lahouti <nadar@example.com>
 </pre>
 
 With the summary list of authors shown next to the file name, they are

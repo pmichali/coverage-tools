@@ -9,12 +9,12 @@ import whodunit
 
 
 line_one = """6e3b3aec8a73da4129e83554ad5ac2f43d4ec775 1813 1794 1794
-author Carol Bouchard
-author-mail <caboucha@cisco.com>
+author Carol Coverage
+author-mail <carolb@example.com>
 author-time 1453922613
 author-tz -0500
-committer Carol Bouchard
-committer-mail <caboucha@cisco.com>
+committer Carol Coverage
+committer-mail <carolb@example.com>
 committer-time 1454335722
 committer-tz -0500
 summary Baremetal-Ironic development for Nexus ML2 drivers
@@ -24,12 +24,12 @@ filename networking_cisco/plugins/ml2/drivers/cisco/nexus/mech_cisco_nexus.py
 """
 
 line_two = """65491efbd9ea0843c00cb50ff4c89211862924de 790 1795
-author Rich Curran
-author-mail <rcurran@cisco.com>
+author Rich Rocket
+author-mail <richard@cover.net>
 author-time 1426193499
 author-tz -0400
-committer rcurran
-committer-mail <rcurran@cisco.com>
+committer richard
+committer-mail <richard@cover.net>
 committer-time 1427468897
 committer-tz +0000
 summary ML2 cisco_nexus MD: Sync of staging/junoplus
@@ -39,12 +39,12 @@ filename networking_cisco/plugins/ml2/drivers/cisco/nexus/mech_cisco_nexus.py
 """
 
 line_three = """6e3b3aec8a73da4129e83554ad5ac2f43d4ec775 28 28 1
-author Carol Bouchard
-author-mail <caboucha@cisco.com>
+author Carol Coverage
+author-mail <carolb@example.com>
 author-time 1453922613
 author-tz -0500
-committer Carol Bouchard
-committer-mail <caboucha@cisco.com>
+committer Carol Coverage
+committer-mail <carolb@example.com>
 committer-time 1454335722
 committer-tz -0500
 summary Baremetal-Ironic development for Nexus ML2 drivers
@@ -224,16 +224,16 @@ def test_parsing_for_two_commits():
     assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
     assert record.line_number == 1794
     assert record.line_count == 1
-    assert record.author == "Carol Bouchard"
+    assert record.author == "Carol Coverage"
     assert record.date == "2016-02-01 09:08:42 -0500"
-    assert record.author_mail == "<caboucha@cisco.com>"
+    assert record.author_mail == "<carolb@example.com>"
     record = commits[1]
     assert record.uuid == "65491efbd9ea0843c00cb50ff4c89211862924de"
     assert record.line_number == 1795
     assert record.line_count == 1
-    assert record.author == "Rich Curran"
+    assert record.author == "Rich Rocket"
     assert record.date == "2015-03-27 15:08:17 +0000"
-    assert record.author_mail == "<rcurran@cisco.com>"
+    assert record.author_mail == "<richard@cover.net>"
 
 
 def test_parse_two_records_same_commit():
@@ -244,9 +244,9 @@ def test_parse_two_records_same_commit():
     record = commits[0]
     assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
     assert record.line_count == 2
-    assert record.author == "Carol Bouchard"
+    assert record.author == "Carol Coverage"
     assert record.date == "2016-02-01 09:08:42 -0500"
-    assert record.author_mail == "<caboucha@cisco.com>"
+    assert record.author_mail == "<carolb@example.com>"
 
 
 def test_parse_not_aggregating_two_records_same_commit():
@@ -258,16 +258,16 @@ def test_parse_not_aggregating_two_records_same_commit():
     assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
     assert record.line_number == 1794
     assert record.line_count == 1
-    assert record.author == "Carol Bouchard"
+    assert record.author == "Carol Coverage"
     assert record.date == "2016-02-01 09:08:42 -0500"
-    assert record.author_mail == "<caboucha@cisco.com>"
+    assert record.author_mail == "<carolb@example.com>"
     record = commits[1]
     assert record.uuid == "6e3b3aec8a73da4129e83554ad5ac2f43d4ec775"
     assert record.line_number == 28
     assert record.line_count == 1
-    assert record.author == "Carol Bouchard"
+    assert record.author == "Carol Coverage"
     assert record.date == "2016-02-01 09:08:42 -0500"
-    assert record.author_mail == "<caboucha@cisco.com>"
+    assert record.author_mail == "<carolb@example.com>"
 
 
 def create_commit(info):
