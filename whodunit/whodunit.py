@@ -495,8 +495,8 @@ def build_owner(args):
                           args.verbose, args.max)
 
 
-def main(parser):
-    args = validate(parser)
+def main():
+    args = validate(setup_parser())
     owners = build_owner(args)
 
     # Generators to get the owner info
@@ -537,4 +537,4 @@ def setup_parser():
     return parser
 
 if __name__ == "__main__":
-    main(setup_parser())
+    main()
