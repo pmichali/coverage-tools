@@ -4,11 +4,6 @@ import os
 import pytest
 import subprocess
 import whodunit
-from whodunit import CoverageOwners
-from whodunit import DateOwners
-from whodunit import Owners
-from whodunit import SizeOwners
-from whodunit import SourceNotFound
 
 
 line_one = """6e3b3aec8a73da4129e83554ad5ac2f43d4ec775 1813 1794 1794
@@ -58,15 +53,15 @@ filename networking_cisco/plugins/ml2/drivers/cisco/nexus/mech_cisco_nexus.py
 
 
 def test_no_filter_for_line_ranges():
-    assert Owners.build_line_range_filter([]) == []
+    assert whodunit.Owners.build_line_range_filter([]) == []
 
 
 def test_filter_one_range():
-    assert Owners.build_line_range_filter([(5, 5)]) == ['-L 5,5']
+    assert whodunit.Owners.build_line_range_filter([(5, 5)]) == ['-L 5,5']
 
 
 def test_filter_multiple_ranges():
-    result = Owners.build_line_range_filter([(1, 3), (6, 7), (9, 9)])
+    result = whodunit.Owners.build_line_range_filter([(1, 3), (6, 7), (9, 9)])
     assert result == ['-L 1,3', '-L 6,7', '-L 9,9']
 
 
@@ -210,7 +205,7 @@ def test_fail_record_missing_committer_email():
 
 def test_parsing_for_two_commits():
     blame_output = line_one + line_two
-    owners = Owners(".")
+    owners = whodunit.Owners(".")
     commits = owners.parse_info_records(blame_output)
     assert len(commits) == 2
     record = commits[0]
@@ -231,7 +226,7 @@ def test_parsing_for_two_commits():
 
 def test_parse_two_records_same_commit():
     blame_output = line_one + line_three
-    owners = Owners(".")
+    owners = whodunit.Owners(".")
     commits = owners.parse_info_records(blame_output)
     assert len(commits) == 1
     record = commits[0]
@@ -244,7 +239,7 @@ def test_parse_two_records_same_commit():
 
 def test_parse_not_aggregating_two_records_same_commit():
     blame_output = line_one + line_three
-    owners = CoverageOwners(".")
+    owners = whodunit.CoverageOwners(".")
     commits = owners.parse_info_records(blame_output)
     assert len(commits) == 2
     record = commits[0]
@@ -288,14 +283,14 @@ def create_commit(info):
 
 def test_merge_only_one_commit():
     commit1 = create_commit({'uuid': 'uuid-1'})
-    commit = SizeOwners.merge_user_commits([commit1])
+    commit = whodunit.SizeOwners.merge_user_commits([commit1])
     assert commit == commit1
 
 
 def test_merge_two_with_second_newer():
     commit1 = create_commit({'uuid': 'uuid-1', 'committer_time': 1453922613})
     commit2 = create_commit({'uuid': 'uuid-2', 'committer_time': 1456193499})
-    commit = SizeOwners.merge_user_commits([commit1, commit2])
+    commit = whodunit.SizeOwners.merge_user_commits([commit1, commit2])
     assert commit.line_count == 20
     assert commit.date == '2016-02-22 21:11:39 -0500'
     assert commit.uuid == 'uuid-2'
@@ -307,7 +302,6 @@ def test_report_by_size():
     Aggregates commits for the same author. Will show the date of the most
     recent commit for the author, when they have multiple commits.
     """
-
     commit1 = create_commit({'uuid': 'uuid-1', 'lines': 50})
     info = {'uuid': 'uuid-2', 'lines': 100,
             'author': 'Carl Coder', 'author_mail': 'carl@bad-code.com',
@@ -316,7 +310,7 @@ def test_report_by_size():
     info = {'uuid': 'uuid-3', 'lines': 60, 'committer_time': 1456193499}
     commit3 = create_commit(info)
 
-    owners = SizeOwners(".")
+    owners = whodunit.SizeOwners(".")
     owners.commits = [commit1, commit2, commit3]
     sorted_commits = owners.sort()
     assert len(sorted_commits) == 2
@@ -345,7 +339,7 @@ def test_report_by_date():
     commit1 = create_commit({'uuid': 'uuid-1', 'committer_time': 1453922613})
     commit2 = create_commit({'uuid': 'uuid-2', 'committer_time': 1454335722})
     commit3 = create_commit({'uuid': 'uuid-3', 'committer_time': 1452193499})
-    owners = DateOwners(".")
+    owners = whodunit.DateOwners(".")
     owners.commits = [commit1, commit2, commit3]
     sorted_commits = owners.sort()
     assert len(sorted_commits) == 3
@@ -353,15 +347,16 @@ def test_report_by_date():
 
 
 def test_build_range_of_one_line():
-    assert CoverageOwners.make_ranges([1]) == [(1, 1)]
+    assert whodunit.CoverageOwners.make_ranges([1]) == [(1, 1)]
 
 
 def test_build_one_range():
-    assert CoverageOwners.make_ranges([10, 11, 12]) == [(10, 12)]
+    assert whodunit.CoverageOwners.make_ranges([10, 11, 12]) == [(10, 12)]
 
 
 def test_build_multiple_ranges():
-    assert CoverageOwners.make_ranges([1, 2, 4, 5, 7]) == [(1, 2), (4, 5), (7, 7)]
+    expected = [(1, 2), (4, 5), (7, 7)]
+    assert whodunit.CoverageOwners.make_ranges([1, 2, 4, 5, 7]) == expected
 
 
 def test_coverage_ok():
@@ -376,7 +371,7 @@ def test_coverage_ok():
             </td>
             <td class="text">
 """.splitlines()
-    result = CoverageOwners.determine_coverage(coverage_fragment)
+    result = whodunit.CoverageOwners.determine_coverage(coverage_fragment)
     assert result == ('', [])
 
 
@@ -391,7 +386,7 @@ def test_coverage_lacking_for_one_line():
             </td>
             <td class="text">
 """.splitlines()
-    result = CoverageOwners.determine_coverage(coverage_fragment)
+    result = whodunit.CoverageOwners.determine_coverage(coverage_fragment)
     assert result == ("some/path/to/some_file.py", [(189, 189)])
 
 
@@ -408,7 +403,7 @@ def test_coverage_lacking_for_a_range_of_lines():
             </td>
             <td class="text">
 """.splitlines()
-    result = CoverageOwners.determine_coverage(coverage_fragment)
+    result = whodunit.CoverageOwners.determine_coverage(coverage_fragment)
     assert result == ("some/path/to/some_file.py", [(161, 163)])
 
 
@@ -433,7 +428,7 @@ def test_coverage_lacking_for_several_ranges():
             </td>
             <td class="text">
 """.splitlines()
-    result = CoverageOwners.determine_coverage(coverage_fragment)
+    result = whodunit.CoverageOwners.determine_coverage(coverage_fragment)
     assert result == ("some/path/to/some_file.py",
                       [(104, 106), (109, 109), (290, 291)])
 
@@ -533,7 +528,7 @@ def test_show_commit():
     commit = create_commit(
         {'uuid': '6e3b3aec8a73da4129e83554ad5ac2f43d4ec775'})
     expected_output = "    6e3b3aec    10 Joe Dirt                  2016-02-01"
-    owners = Owners(".")
+    owners = whodunit.Owners(".")
     assert owners.show(commit) == expected_output
 
 
@@ -545,7 +540,7 @@ def test_show_commit_verbose_mode():
                        "Joe Dirt joe@dirt.com                              "
                        "2016-02-01 09:08:42 -0500 "
                        "Patty Python patty.python.com")
-    owners = Owners(".", verbose=True)
+    owners = whodunit.Owners(".", verbose=True)
     assert owners.show(commit) == expected_output
 
 
@@ -560,7 +555,7 @@ def test_show_commit_for_coverage():
         {'uuid': '65491efbd9ea0843c00cb50ff4c89211862924de',
          'lines': 1, 'line_number': 5, 'committer_time': 1427468897,
          'author': 'Patty Python'})
-    owners = CoverageOwners(".")
+    owners = whodunit.CoverageOwners(".")
     expected_output = ("    6e3b3aec           1 Joe Dirt                  "
                        "2016-02-01")
     assert owners.show(commit1) == expected_output
@@ -581,7 +576,7 @@ def test_show_commit_for_coverage_verbose():
                        "Joe Dirt joe@dirt.com                              "
                        "2016-02-01 09:08:42 -0500 "
                        "Patty Python patty.python.com")
-    owners = CoverageOwners(".", verbose=True)
+    owners = whodunit.CoverageOwners(".", verbose=True)
     assert owners.show(commit) == expected_output
 
 
@@ -620,14 +615,14 @@ def test_unique_authors():
     commit3 = create_commit({'uuid': UUID2, 'lines': 1, 'line_number': 5,
                              'committer_time': 1427468897,
                              'author': 'Patty Python'})
-    owners = Owners(".")
+    owners = whodunit.Owners(".")
     owners.sorted_commits = [commit1, commit2, commit3]
     authors = owners.unique_authors(0)
     assert authors == ['Joe Dirt', 'Patty Python']
 
 
 def test_no_commits():
-    owners = CoverageOwners(".")
+    owners = whodunit.CoverageOwners(".")
     actual_commits = owners.sort()
     assert actual_commits == []
 
@@ -637,7 +632,7 @@ def test_one_commit():
     commit = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
     expected = copy.copy(commit)
     expected.lines = '1'
-    owners = CoverageOwners(".")
+    owners = whodunit.CoverageOwners(".")
     owners.commits = [commit]
     actual_commits = owners.sort()
     assert actual_commits == [expected]
@@ -648,7 +643,7 @@ def test_non_contiguous_lines():
     commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
     commit2 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 3})
     commit3 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 5})
-    owners = CoverageOwners(".")
+    owners = whodunit.CoverageOwners(".")
     owners.commits = [commit1, commit2, commit3]
     expected_commits = copy.copy(owners.commits)
 
@@ -661,7 +656,7 @@ def test_contiguous_lines():
     commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
     commit2 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 2})
     commit3 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 5})
-    owners = CoverageOwners(".")
+    owners = whodunit.CoverageOwners(".")
     owners.commits = [commit1, commit2, commit3]
 
     actual_commits = owners.sort()
@@ -678,7 +673,7 @@ def test_contiguous_lines_different_commit():
     commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
     commit2 = create_commit({'uuid': UUID2, 'lines': 1, 'line_number': 2})
     commit3 = create_commit({'uuid': UUID2, 'lines': 1, 'line_number': 5})
-    owners = CoverageOwners(".")
+    owners = whodunit.CoverageOwners(".")
     owners.commits = [commit1, commit2, commit3]
     expected_commits = copy.copy(owners.commits)
 
@@ -692,7 +687,7 @@ def test_last_commit_part_of_contiguous_region():
     commit1 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 1})
     commit2 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 2})
     commit3 = create_commit({'uuid': UUID1, 'lines': 1, 'line_number': 3})
-    owners = CoverageOwners(".")
+    owners = whodunit.CoverageOwners(".")
     owners.commits = [commit1, commit2, commit3]
 
     actual_commits = owners.sort()
@@ -703,7 +698,7 @@ def test_last_commit_part_of_contiguous_region():
 def test_is_git_file():
     with mock.patch.object(subprocess, 'Popen', create=True) as popen:
         popen.return_value.returncode = 0
-        assert Owners.is_git_file('.', 'foo.py')
+        assert whodunit.Owners.is_git_file('.', 'foo.py')
     expected = [mock.call(['git', 'ls-files', '--error-unmatch', 'foo.py'],
                           stderr=-1, stdout=-1)]
     assert popen.call_count == 1
@@ -713,7 +708,7 @@ def test_is_git_file():
 def test_is_not_git_file():
     with mock.patch.object(subprocess, 'Popen', create=True) as popen:
         popen.return_value.returncode = 1
-        assert not Owners.is_git_file('.', 'foo.py')
+        assert not whodunit.Owners.is_git_file('.', 'foo.py')
     expected = [mock.call(['git', 'ls-files', '--error-unmatch', 'foo.py'],
                           stderr=-1, stdout=-1)]
     assert popen.call_count == 1
@@ -721,14 +716,14 @@ def test_is_not_git_file():
 
 
 def test_collecting_modules(monkeypatch):
-    owners = Owners('/some/path')
+    owners = whodunit.Owners('/some/path')
 
     with mock.patch('os.walk') as walker:
         walker.return_value = [('/some/path', (), ('foo.py', 'bar.py')), ]
 
         def is_git(cls, path, name):
             return True
-        monkeypatch.setattr(Owners, 'is_git_file', is_git)
+        monkeypatch.setattr(whodunit.Owners, 'is_git_file', is_git)
 
         modules = owners.collect_modules()
         expected = [('/some/path/foo.py', []), ('/some/path/bar.py', [])]
@@ -736,14 +731,14 @@ def test_collecting_modules(monkeypatch):
 
 
 def tests_filtering_modules(monkeypatch):
-    owners = Owners('/some/path', filter="*.py")
+    owners = whodunit.Owners('/some/path', filter="*.py")
 
     with mock.patch('os.walk') as walker:
         walker.return_value = [('/some/path', (), ('a.py', 'skip', 'b.py')), ]
 
         def is_git(cls, path, name):
             return True
-        monkeypatch.setattr(Owners, 'is_git_file', is_git)
+        monkeypatch.setattr(whodunit.Owners, 'is_git_file', is_git)
 
         modules = owners.collect_modules()
         expected = [('/some/path/a.py', []), ('/some/path/b.py', [])]
@@ -761,7 +756,7 @@ def test_collecting_blame_info(monkeypatch, capsys):
     with mock.patch.object(subprocess, 'Popen', create=True) as popen:
         popen.return_value.communicate.side_effect = [('blame1', ''),
                                                       ('blame5+10', '')]
-        blame_info = Owners.collect_blame_info(matches)
+        blame_info = whodunit.Owners.collect_blame_info(matches)
 
         assert list(blame_info) == ['blame1', 'blame5+10']
     assert popen.call_count == 2
@@ -798,7 +793,7 @@ def test_fail_collecting_blame_info(monkeypatch, capsys):
 
     with mock.patch.object(subprocess, 'Popen', create=True) as popen:
         popen.return_value.communicate.return_value = ('', 'blame fail')
-        blame_info = Owners.collect_blame_info(matches)
+        blame_info = whodunit.Owners.collect_blame_info(matches)
 
         assert list(blame_info) == []
     assert popen.call_count == 1
@@ -823,7 +818,6 @@ def test_collecting_coverage_modules(monkeypatch):
     This demonstrates that the index.html file is skipped and a coverage
     file that has 100% coverage (simulated).
     """
-
     def is_a_file(filename):
         return True
     monkeypatch.setattr(os.path, 'isfile', is_a_file)
@@ -832,7 +826,7 @@ def test_collecting_coverage_modules(monkeypatch):
         return mock.MagicMock()
     monkeypatch.setattr('__builtin__.open', my_open)
 
-    coverage_owners = CoverageOwners('/some/repo/cover')
+    coverage_owners = whodunit.CoverageOwners('/some/repo/cover')
 
     with mock.patch('os.listdir') as list_dir:
         list_dir.return_value = ['a_py.html', 'index.html',
@@ -850,7 +844,6 @@ def test_collecting_coverage_modules(monkeypatch):
 
 def test_fail_collecting_coverage_modules(monkeypatch):
     """Unable to find file corresponding to coverage file."""
-
     def is_a_file(filename):
         return False
     monkeypatch.setattr(os.path, 'isfile', is_a_file)
@@ -859,16 +852,77 @@ def test_fail_collecting_coverage_modules(monkeypatch):
         return mock.MagicMock()
     monkeypatch.setattr('__builtin__.open', my_open)
 
-    coverage_owners = CoverageOwners('/some/repo/cover')
+    coverage_owners = whodunit.CoverageOwners('/some/repo/cover')
 
     with mock.patch('os.listdir') as list_dir:
         list_dir.return_value = ['a_py.html', ]
         with mock.patch.object(coverage_owners,
                                'determine_coverage') as get_cover:
             get_cover.side_effect = [('a.py', [(1, 1), ]), ]
-            with pytest.raises(SourceNotFound) as snf:
+            with pytest.raises(whodunit.SourceNotFound) as snf:
                 modules = coverage_owners.collect_modules()
                 for module in modules:
                     pass
             expected = 'Source file a.py not found at /some/repo'
             assert snf.value.message == expected
+
+
+def test_showing_details_of_date_sorted_commit(capsys):
+    """Details are sorted by commit date, newest first."""
+    commit1 = create_commit({'uuid': '11111111', 'committer_time': 1453922613})
+    commit2 = create_commit({'uuid': '22222222', 'committer_time': 1454335722})
+    commit3 = create_commit({'uuid': '33333333', 'committer_time': 1452193499})
+    owners = whodunit.DateOwners(".", details=True)
+    owners.commits = [commit1, commit2, commit3]
+    owners.sort()
+    owners.show_details(0)
+    out, err = capsys.readouterr()
+    expected = """    22222222    10 Joe Dirt                  2016-02-01
+    11111111    10 Joe Dirt                  2016-01-27
+    33333333    10 Joe Dirt                  2016-01-07
+"""
+    assert out == expected
+
+
+def test_showing_details_of_size_sorted_commit(capsys):
+    """Detailed data based on size per author.
+
+    For one user, there are two commits, and will use the uuid for the newer
+    commit. The total number of lines are aggregated for the authors.
+    """
+    commit1 = create_commit({'uuid': '11111111', 'lines': 20})
+    commit2 = create_commit({'uuid': '1a1a1a1a', 'committer_time': 1455679427})
+    commit3 = create_commit({'uuid': '22222222',
+                             'author_mail': 'carl@coder.com',
+                             'author': 'Carl Coder'})
+    commit4 = create_commit({'uuid': '33333333', 'lines': 100,
+                             'author_mail': 'zebra@zoo.com',
+                             'author': 'Zebra Zoo'})
+    owners = whodunit.SizeOwners(".", details=True)
+    owners.commits = [commit1, commit2, commit3, commit4]
+    owners.sort()
+    owners.show_details(0)
+    out, err = capsys.readouterr()
+    expected = """    33333333   100 Zebra Zoo                 2016-02-01
+    1a1a1a1a    30 Joe Dirt                  2016-02-16
+    22222222    10 Carl Coder                2016-02-01
+"""
+    assert out == expected
+
+
+def test_showing_details_of_coverage_commits(capsys):
+    """Details for coverage are sorted (and grouped) by line number."""
+    commit1 = create_commit({'uuid': '11111111', 'line_number': 5})
+    commit2 = create_commit({'uuid': '22222222', 'line_number': 8})
+    commit3 = create_commit({'uuid': '22222222', 'line_number': 9})
+    commit4 = create_commit({'uuid': '33333333', 'line_number': 10})
+    owners = whodunit.CoverageOwners(".")
+    owners.commits = [commit1, commit2, commit3, commit4]
+    owners.sort()
+    owners.show_details(0)
+    out, err = capsys.readouterr()
+    expected = """    11111111           5 Joe Dirt                  2016-02-01
+    22222222         8-9 Joe Dirt                  2016-02-01
+    33333333          10 Joe Dirt                  2016-02-01
+"""
+    assert out == expected
