@@ -817,10 +817,11 @@ def test_fail_collecting_blame_info(monkeypatch, capsys):
 def test_collecting_coverage_modules(monkeypatch):
     """Collecting of files for coverage analysis.
 
-    Note: the root will be the coverage directory (typically 'cover',
+    Note: the root will be the coverage directory (typically 'cover')
     under the root of the repo tree.
 
-    Note: the index.html file is skipped.
+    This demonstrates that the index.html file is skipped and a coverage
+    file that has 100% coverage (simulated).
     """
 
     def is_a_file(filename):
@@ -833,14 +834,14 @@ def test_collecting_coverage_modules(monkeypatch):
 
     coverage_owners = CoverageOwners('/some/repo/cover')
 
-    with mock.patch('os.walk') as walker:
-        walker.return_value = [
-            ('.', (), ('a_py.html', 'index.html', 'path_b_py.html')),
-        ]
+    with mock.patch('os.listdir') as list_dir:
+        list_dir.return_value = ['a_py.html', 'index.html',
+                                 'path_b_py.html', 'covered100percent.html']
         with mock.patch.object(coverage_owners,
                                'determine_coverage') as get_cover:
             get_cover.side_effect = [('a.py', [(1, 1), ]),
-                                     ('path/b.py', [(5, 5), (10, 10)])]
+                                     ('path/b.py', [(5, 5), (10, 10)]),
+                                     ('', [])]
             modules = coverage_owners.collect_modules()
             expected = [('/some/repo/a.py', [(1, 1)]),
                         ('/some/repo/path/b.py', [(5, 5), (10, 10)])]
@@ -860,10 +861,8 @@ def test_fail_collecting_coverage_modules(monkeypatch):
 
     coverage_owners = CoverageOwners('/some/repo/cover')
 
-    with mock.patch('os.walk') as walker:
-        walker.return_value = [
-            ('.', (), ('a_py.html', )),
-        ]
+    with mock.patch('os.listdir') as list_dir:
+        list_dir.return_value = ['a_py.html', ]
         with mock.patch.object(coverage_owners,
                                'determine_coverage') as get_cover:
             get_cover.side_effect = [('a.py', [(1, 1), ]), ]

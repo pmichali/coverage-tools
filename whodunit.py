@@ -365,19 +365,15 @@ class CoverageOwners(Owners):
         Will verify that the source file is within the project tree, relative
         to the coverage directory.
         """
-        # TODO(pcm): Change to os.listdir(self.root)
-        for path, dirlist, filelist in os.walk(self.root):
-            for name in fnmatch.filter(filelist, "*.html"):
-                print(name)
+        for name in fnmatch.filter(os.listdir(self.root), "*.html"):
                 if name == 'index.html':
                     continue
-                with open(os.path.join(path, name)) as cover_file:
+                with open(os.path.join(self.root, name)) as cover_file:
                     src_file, line_ranges = self.determine_coverage(cover_file)
                 if not src_file:
                     continue
                 src_file = os.path.abspath(os.path.join(self.root, '..',
                                                         src_file))
-                print(src_file)
                 if os.path.isfile(src_file):
                     yield (src_file, line_ranges)
                 else:
