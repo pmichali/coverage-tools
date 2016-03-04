@@ -2,7 +2,9 @@ import copy
 import mock
 import os
 import pytest
+import shutil
 import subprocess
+import tempfile
 import whodunit
 
 
@@ -50,6 +52,16 @@ previous 25088fc1e98735e811e6bac8c9930d44639130b9 networking_cisco/plugins/ml2/d
 filename networking_cisco/plugins/ml2/drivers/cisco/nexus/mech_cisco_nexus.py
 \tfrom oslo_serialization import jsonutils
 """
+
+
+@pytest.fixture()
+def fake_project(request):
+    project_area = tempfile.mkdtemp()
+
+    def fin():
+        shutil.rmtree(project_area)
+    request.addfinalizer(fin)
+    return project_area
 
 
 def test_no_filter_for_line_ranges():
@@ -493,7 +505,14 @@ def test_validate_with_file():
 def test_fail_validate_cover_not_directory():
     parser = whodunit.setup_parser()
     with pytest.raises(SystemExit) as excinfo:
-        whodunit.validate(parser, ['-s', 'cover', './test_whodunit'])
+        whodunit.validate(parser, ['-s', 'cover', './test_whodunit.py'])
+    assert str(excinfo.value) == '2'
+
+
+def test_fail_validate_cover_missing_coverage_directory(fake_project):
+    parser = whodunit.setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        whodunit.validate(parser, ['-s', 'cover', fake_project])
     assert str(excinfo.value) == '2'
 
 
@@ -820,9 +839,6 @@ def test_fail_collecting_blame_info(monkeypatch, capsys):
 def test_collecting_coverage_modules(monkeypatch):
     """Collecting of files for coverage analysis.
 
-    Note: the root will be the coverage directory (typically 'cover')
-    under the root of the repo tree.
-
     This demonstrates that the index.html file is skipped and a coverage
     file that has 100% coverage (simulated).
     """
@@ -834,7 +850,7 @@ def test_collecting_coverage_modules(monkeypatch):
         return mock.MagicMock()
     monkeypatch.setattr('__builtin__.open', my_open)
 
-    coverage_owners = whodunit.CoverageOwners('/some/repo/cover')
+    coverage_owners = whodunit.CoverageOwners('/some/repo')
 
     with mock.patch('os.listdir') as list_dir:
         list_dir.return_value = ['a_py.html', 'index.html',
@@ -860,7 +876,7 @@ def test_fail_collecting_coverage_modules(monkeypatch):
         return mock.MagicMock()
     monkeypatch.setattr('__builtin__.open', my_open)
 
-    coverage_owners = whodunit.CoverageOwners('/some/repo/cover')
+    coverage_owners = whodunit.CoverageOwners('/some/repo')
 
     with mock.patch('os.listdir') as list_dir:
         list_dir.return_value = ['a_py.html', ]

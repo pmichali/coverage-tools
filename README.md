@@ -94,7 +94,7 @@ with coverage reports on the repo files, you can use whodunit to provide
 ownership for lines in modules that are missing coverage or have partial
 coverage.
 
-To do this, you specify the directory of the coverage info, and provide
+To do this, you specify the root directory for the repo, and provide
 the "--sort cover" argument. This will automatically select the --detail
 option. You can choose to use the --verbose option for author email,
 full date/time, and committer name and email output in the report.
@@ -105,7 +105,7 @@ The filter option is ignored for this use case.
 
 For example:
 <pre>
-    python whodunit.py -s cover /opt/stack/networking-cisco/cover
+    python whodunit.py -s cover /opt/stack/networking-cisco
 
     routerrole.py (Bob Melander)
         a238bf6b          54 Bob Melander              2015-10-13
@@ -213,9 +213,3 @@ This runs the tool on a neutron repo, shows more context lines, and will
 do a diff between HEAD~5 and HEAD~ commits.
 
 You can use the -h option to see what the arguments are for this script.
-
-
-TODOs:
-
-- Run coverage and mock to test more methods (coverage and whodunit)
-- Push up to GitHub

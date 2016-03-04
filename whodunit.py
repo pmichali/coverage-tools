@@ -365,15 +365,15 @@ class CoverageOwners(Owners):
         Will verify that the source file is within the project tree, relative
         to the coverage directory.
         """
-        for name in fnmatch.filter(os.listdir(self.root), "*.html"):
+        coverage_dir = os.path.join(self.root, 'cover')
+        for name in fnmatch.filter(os.listdir(coverage_dir), "*.html"):
                 if name == 'index.html':
                     continue
-                with open(os.path.join(self.root, name)) as cover_file:
+                with open(os.path.join(coverage_dir, name)) as cover_file:
                     src_file, line_ranges = self.determine_coverage(cover_file)
                 if not src_file:
                     continue
-                src_file = os.path.abspath(os.path.join(self.root, '..',
-                                                        src_file))
+                src_file = os.path.abspath(os.path.join(self.root, src_file))
                 if os.path.isfile(src_file):
                     yield (src_file, line_ranges)
                 else:
@@ -460,6 +460,8 @@ def validate(parser, provided_args=None):
     if args.sort_by == 'cover':
         if not os.path.isdir(args.root):
             parser.error("Must specify a directory, when sorting by coverage")
+        if not os.path.isdir(os.path.join(args.root, 'cover')):
+            parser.error("Missing 'cover' directory under root of repo")    
         if args.max != 0:
             parser.error("Cannot specify a limit to number of users/commits "
                          "to show, when sorting coverage reports")
