@@ -55,6 +55,20 @@ filename networking_cisco/plugins/ml2/drivers/cisco/nexus/mech_cisco_nexus.py
 
 
 @pytest.fixture()
+def fake_cover_project(request):
+    cover_project_area = tempfile.mkdtemp()
+    cwd = os.getcwd()
+    os.chdir(cover_project_area)
+    os.mkdir('cover')
+    os.chdir(cwd)
+
+    def fin():
+        shutil.rmtree(cover_project_area)
+    request.addfinalizer(fin)
+    return cover_project_area
+
+
+@pytest.fixture()
 def fake_project(request):
     project_area = tempfile.mkdtemp()
 
@@ -484,9 +498,9 @@ def test_parsing_coverage_options():
     assert args.max == 0
 
 
-def test_validate_cover():
+def test_validate_cover(fake_cover_project):
     parser = whodunit.setup_parser()
-    args = whodunit.validate(parser, ['-s', 'cover', '.'])
+    args = whodunit.validate(parser, ['-s', 'cover', fake_cover_project])
     assert args.sort_by == 'cover'
 
 
@@ -513,6 +527,29 @@ def test_fail_validate_cover_missing_coverage_directory(fake_project):
     parser = whodunit.setup_parser()
     with pytest.raises(SystemExit) as excinfo:
         whodunit.validate(parser, ['-s', 'cover', fake_project])
+    assert str(excinfo.value) == '2'
+
+
+def test_fail_no_filter_with_cover_mode(fake_cover_project):
+    parser = whodunit.setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        whodunit.validate(parser, ['-s', 'cover', '-f', '*.py',
+                                   fake_cover_project])
+    assert str(excinfo.value) == '2'
+
+
+def test_fail_no_details_when_cover_mode(fake_cover_project):
+    parser = whodunit.setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        whodunit.validate(parser, ['-s', 'cover', '-d', fake_cover_project])
+    assert str(excinfo.value) == '2'
+
+
+def test_fail_when_specifying_max_in_cover_mode(fake_cover_project):
+    parser = whodunit.setup_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        whodunit.validate(parser, ['-s', 'cover', '-m', '5',
+                                   fake_cover_project])
     assert str(excinfo.value) == '2'
 
 
@@ -544,9 +581,9 @@ def test_build_size_owner():
     assert isinstance(owner, whodunit.SizeOwners)
 
 
-def test_build_coverage_owner():
+def test_build_coverage_owner(fake_cover_project):
     parser = whodunit.setup_parser()
-    args = whodunit.validate(parser, ['-s', 'cover', '.'])
+    args = whodunit.validate(parser, ['-s', 'cover', fake_cover_project])
     owner = whodunit.build_owner(args)
     assert isinstance(owner, whodunit.CoverageOwners)
 

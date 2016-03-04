@@ -101,7 +101,8 @@ full date/time, and committer name and email output in the report.
 
 You cannot specify the --max option to limit the output (which doesn't
 make sense as you want to see all the lines that do not have coverage.
-The filter option is ignored for this use case.
+Likewise, the --filter and --details options are not allowed either.
+The filter is forced to "*", and details are implied in the output.
 
 For example:
 <pre>

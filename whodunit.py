@@ -461,7 +461,11 @@ def validate(parser, provided_args=None):
         if not os.path.isdir(args.root):
             parser.error("Must specify a directory, when sorting by coverage")
         if not os.path.isdir(os.path.join(args.root, 'cover')):
-            parser.error("Missing 'cover' directory under root of repo")    
+            parser.error("Missing 'cover' directory under root of repo")
+        if args.details:
+            parser.error("Details option is implied, when using 'cover' mode")
+        if args.filter != "*":
+            parser.error("You cannot filter modules, when in 'cover' mode")
         if args.max != 0:
             parser.error("Cannot specify a limit to number of users/commits "
                          "to show, when sorting coverage reports")
