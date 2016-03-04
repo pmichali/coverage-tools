@@ -3,9 +3,15 @@ import os
 import pytest
 import shutil
 import subprocess
+import sys
 import tempfile
 
 import my_coverage as cover
+
+if sys.version_info > (3, ):
+    import builtins
+else:
+    import __builtin__ as builtins
 
 
 @pytest.fixture()
@@ -245,7 +251,7 @@ def test_fail_collecting_diffs(monkeypatch):
                 pass
         expected_msg = ('Unable to collect diffs for file /some/path/foo: '
                         'bad file')
-        assert excinfo.value.message == expected_msg
+        assert excinfo.value.args[0] == expected_msg
 
 
 def test_collecting_diff_files(monkeypatch):
@@ -270,7 +276,7 @@ def test_fail_collecting_diff_files(monkeypatch):
                 pass
         expected_msg = ('Unable to find diff files to examine in '
                         '/some/path: no file')
-        assert excinfo.value.message == expected_msg
+        assert excinfo.value.args[0] == expected_msg
 
 
 def test_determine_coverage_file_name():
@@ -362,8 +368,8 @@ def test_checking_coverage_file(monkeypatch):
         return True
     monkeypatch.setattr(os.path, 'isfile', is_a_file)
 
-    with mock.patch('__builtin__.open',
-                    mock.mock_open(), create=True) as mock_open:
+    with mock.patch.object(builtins, 'open', mock.mock_open(),
+                           create=True) as mock_open:
         mock_open.return_value.readlines.return_value = coverage_info
         cover.check_coverage_file('.', module)
     assert module.have_report

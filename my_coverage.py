@@ -157,7 +157,7 @@ def collect_diff_lines(diff_region, start, last):
     lines = []
     line_num = start
     while line_num <= last:
-        line = diff_region.next()
+        line = next(diff_region)
         if line.startswith('-'):
             continue
         lines.append(SourceLine(line_num, is_context=line.startswith(' '),

@@ -4,8 +4,15 @@ import os
 import pytest
 import shutil
 import subprocess
+import sys
 import tempfile
 import whodunit
+
+
+if sys.version_info > (3, ):
+    import builtins
+else:
+    import __builtin__ as builtins
 
 
 line_one = """6e3b3aec8a73da4129e83554ad5ac2f43d4ec775 1813 1794 1794
@@ -132,7 +139,7 @@ def test_fail_record_missing_author():
     record.store_attribute('committer-tz', '-0500')
     with pytest.raises(whodunit.BadRecordException) as e:
         record.validate()
-    assert e.value.message == "Missing author name"
+    assert e.value.args[0] == "Missing author name"
 
 
 def test_fail_record_missing_committer():
@@ -146,7 +153,7 @@ def test_fail_record_missing_committer():
     record.store_attribute('committer-tz', '-0500')
     with pytest.raises(whodunit.BadRecordException) as e:
         record.validate()
-    assert e.value.message == "Missing committer name"
+    assert e.value.args[0] == "Missing committer name"
 
 
 def test_fail_record_missing_author_time():
@@ -160,7 +167,7 @@ def test_fail_record_missing_author_time():
     record.store_attribute('committer-tz', '-0500')
     with pytest.raises(whodunit.BadRecordException) as e:
         record.validate()
-    assert e.value.message == "Missing author time information"
+    assert e.value.args[0] == "Missing author time information"
 
     record = whodunit.BlameRecord('some-uuid', 3)
     record.store_attribute('author', 'Me')
@@ -172,7 +179,7 @@ def test_fail_record_missing_author_time():
     record.store_attribute('committer-tz', '-0500')
     with pytest.raises(whodunit.BadRecordException) as e:
         record.validate()
-    assert e.value.message == "Missing author time information"
+    assert e.value.args[0] == "Missing author time information"
 
 
 def test_fail_record_missing_committer_time():
@@ -186,7 +193,7 @@ def test_fail_record_missing_committer_time():
     record.store_attribute('committer-tz', '-0500')
     with pytest.raises(whodunit.BadRecordException) as e:
         record.validate()
-    assert e.value.message == "Missing committer time information"
+    assert e.value.args[0] == "Missing committer time information"
 
     record = whodunit.BlameRecord('some-uuid', 9)
     record.store_attribute('author', 'Me')
@@ -198,7 +205,7 @@ def test_fail_record_missing_committer_time():
     record.store_attribute('committer-time', '1454335722')
     with pytest.raises(whodunit.BadRecordException) as e:
         record.validate()
-    assert e.value.message == "Missing committer time information"
+    assert e.value.args[0] == "Missing committer time information"
 
 
 def test_fail_record_missing_author_email():
@@ -212,7 +219,7 @@ def test_fail_record_missing_author_email():
     record.store_attribute('committer-tz', '-0500')
     with pytest.raises(whodunit.BadRecordException) as e:
         record.validate()
-    assert e.value.message == "Missing author email"
+    assert e.value.args[0] == "Missing author email"
 
 
 def test_fail_record_missing_committer_email():
@@ -226,7 +233,7 @@ def test_fail_record_missing_committer_email():
     record.store_attribute('committer-tz', '-0500')
     with pytest.raises(whodunit.BadRecordException) as e:
         record.validate()
-    assert e.value.message == "Missing committer email"
+    assert e.value.args[0] == "Missing committer email"
 
 
 def test_parsing_for_two_commits():
@@ -885,7 +892,7 @@ def test_collecting_coverage_modules(monkeypatch):
 
     def my_open(filename):
         return mock.MagicMock()
-    monkeypatch.setattr('__builtin__.open', my_open)
+    monkeypatch.setattr(builtins, 'open', my_open)
 
     coverage_owners = whodunit.CoverageOwners('/some/repo')
 
@@ -911,7 +918,7 @@ def test_fail_collecting_coverage_modules(monkeypatch):
 
     def my_open(filename):
         return mock.MagicMock()
-    monkeypatch.setattr('__builtin__.open', my_open)
+    monkeypatch.setattr(builtins, 'open', my_open)
 
     coverage_owners = whodunit.CoverageOwners('/some/repo')
 
@@ -925,7 +932,7 @@ def test_fail_collecting_coverage_modules(monkeypatch):
                 for module in modules:
                     pass
             expected = 'Source file a.py not found at /some/repo'
-            assert snf.value.message == expected
+            assert snf.value.args[0] == expected
 
 
 def test_showing_details_of_date_sorted_commit(capsys):

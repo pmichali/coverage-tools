@@ -103,15 +103,19 @@ class BlameRecord(object):
     def date(self):
         return date_to_str(self.committer_time, self.committer_tz)
 
-    def __cmp__(self, other):
-        """Compare records by author's email address.
+    def __lt__(self, other):
+        """For sorting, use author's email address.
 
         It's possible for commits by the same author to have different name
         spelling. Will use the email address, which hopefully will not change
         as often. Also using author, rather than committer, as there could be
         commits where the last patchset was by someone else.
         """
-        return cmp(self.author_mail, other.author_mail)
+        return self.author_mail < other.author_mail
+
+    def __eq__(self, other):
+        """For test comparision."""
+        return self.author_mail == other.author_mail
 
     def validate(self):
         if not hasattr(self, 'author_time') or not hasattr(self, 'author_tz'):
