@@ -287,6 +287,14 @@ def test_merge_only_one_commit():
     assert commit == commit1
 
 
+def test_merge_two_commits_from_same_author():
+    commit1 = create_commit({'uuid': 'uuid-1'})
+    commit2 = create_commit({'uuid': 'uuid-2'})
+    commit = whodunit.SizeOwners.merge_user_commits([commit1, commit2])
+    assert commit.line_count == 20
+    assert commit.date == '2016-02-01 09:08:42 -0500'
+    assert commit.uuid == 'uuid-1'
+
 def test_merge_two_with_second_newer():
     commit1 = create_commit({'uuid': 'uuid-1', 'committer_time': 1453922613})
     commit2 = create_commit({'uuid': 'uuid-2', 'committer_time': 1456193499})
