@@ -5,16 +5,7 @@ import shutil
 import subprocess
 import tempfile
 
-from my_coverage import check_coverage_file
-from my_coverage import check_coverage_status
-from my_coverage import collect_diff_files
-from my_coverage import collect_diffs_for_files
-from my_coverage import DiffCollectionFailed
-from my_coverage import parse_diffs
-from my_coverage import setup_parser
-from my_coverage import SourceLine
-from my_coverage import SourceModule
-from my_coverage import validate
+import my_coverage as cover
 
 
 @pytest.fixture()
@@ -50,8 +41,8 @@ def test_extract_no_added_line_diffs():
 -# whodunit
  #
 """
-    source_file, lines = parse_diffs(diffs)
-    expected = [SourceLine(1), SourceLine(2)]
+    source_file, lines = cover.parse_diffs(diffs)
+    expected = [cover.SourceLine(1), cover.SourceLine(2)]
     assert source_file == 'whodunit.py'
     assert lines == expected
 
@@ -70,11 +61,11 @@ index 0fa872e..77ebfef 100644
  NEXUS_PORT_2 = 'ethernet:1/20'
  NEXUS_DUAL1 = 'ethernet:1/3'
 """
-    source_file, lines = parse_diffs(diffs)
+    source_file, lines = cover.parse_diffs(diffs)
     expected = [
-        SourceLine(59), SourceLine(60), SourceLine(61),
-        SourceLine(62, False),
-        SourceLine(63), SourceLine(64), SourceLine(65)
+        cover.SourceLine(59), cover.SourceLine(60), cover.SourceLine(61),
+        cover.SourceLine(62, False),
+        cover.SourceLine(63), cover.SourceLine(64), cover.SourceLine(65)
     ]
     assert source_file == 'path/file.py'
     assert lines == expected
@@ -103,11 +94,12 @@ index 8c57e4a..983de98 100644
 +ETH_PREFIX = "/ether-"
  DUPLICATE_EXCEPTION = "object already exists"
 """
-    source_file, lines = parse_diffs(diffs)
+    source_file, lines = cover.parse_diffs(diffs)
     expected = [
-        SourceLine(42), SourceLine(43), SourceLine(44),
-        SourceLine(45, False), SourceLine(46, False), SourceLine(47, False),
-        SourceLine(48)
+        cover.SourceLine(42), cover.SourceLine(43), cover.SourceLine(44),
+        cover.SourceLine(45, False), cover.SourceLine(46, False),
+        cover.SourceLine(47, False),
+        cover.SourceLine(48)
     ]
     assert source_file == 'path/constants.py'
     assert lines == expected
@@ -151,18 +143,18 @@ index 2af698e..79da120 100644
 -    main(parser.parse_args())
 +    main(setup_parser())
 """
-    source_file, lines = parse_diffs(diffs)
+    source_file, lines = cover.parse_diffs(diffs)
     expected = [
-        SourceLine(484), SourceLine(485), SourceLine(486),
-        SourceLine(487, False), SourceLine(488, False),
-        SourceLine(489), SourceLine(490), SourceLine(491),
+        cover.SourceLine(484), cover.SourceLine(485), cover.SourceLine(486),
+        cover.SourceLine(487, False), cover.SourceLine(488, False),
+        cover.SourceLine(489), cover.SourceLine(490), cover.SourceLine(491),
 
-        SourceLine(500), SourceLine(501), SourceLine(502),
-        SourceLine(503, False),
-        SourceLine(504), SourceLine(505), SourceLine(506),
+        cover.SourceLine(500), cover.SourceLine(501), cover.SourceLine(502),
+        cover.SourceLine(503, False),
+        cover.SourceLine(504), cover.SourceLine(505), cover.SourceLine(506),
 
-        SourceLine(526), SourceLine(527), SourceLine(528),
-        SourceLine(529, False)
+        cover.SourceLine(526), cover.SourceLine(527), cover.SourceLine(528),
+        cover.SourceLine(529, False)
     ]
     assert source_file == 'whodunit.py'
     assert len(lines) == 19
@@ -181,9 +173,9 @@ index 0000000..257cc56
 @@ -0,0 +1 @@
 +foo
 """
-    source_file, lines = parse_diffs(diffs)
+    source_file, lines = cover.parse_diffs(diffs)
     assert source_file == 'dummy'
-    assert lines == [SourceLine(1, is_context=False)]
+    assert lines == [cover.SourceLine(1, is_context=False)]
 
 
 def test_extract_no_context_no_added_lines():
@@ -195,7 +187,7 @@ index 7a47da8..7ee1d92 100644
 @@ -65 +35,0 @@ check_pot_files_errors () {
 -check_opinionated_shell
 """
-    source_file, lines = parse_diffs(diffs)
+    source_file, lines = cover.parse_diffs(diffs)
     assert source_file == 'dummy'
     assert lines == []
 
@@ -213,9 +205,9 @@ index 2498062..efcc602 100644
 -#!/bin/bash
 +#!/usr/bin/env bash
 """
-    source_file, lines = parse_diffs(diffs)
+    source_file, lines = cover.parse_diffs(diffs)
     assert source_file == 'devstack/saf/cisco_saf'
-    assert lines == [SourceLine(1, is_context=False)]
+    assert lines == [cover.SourceLine(1, is_context=False)]
 
 
 def test_collecting_diffs(monkeypatch):
@@ -223,7 +215,7 @@ def test_collecting_diffs(monkeypatch):
         popen.return_value.communicate.side_effect = [('output1', ''),
                                                       ('output2', '')]
         monkeypatch.setattr('os.chdir', lambda x: None)
-        diffs = collect_diffs_for_files('/some/path', versions="HEAD",
+        diffs = cover.collect_diffs_for_files('/some/path', versions="HEAD",
                                         source_files=['foo', 'bar'],
                                         context_lines=5)
         assert list(diffs) == ['output1', 'output2']
@@ -245,10 +237,10 @@ def test_fail_collecting_diffs(monkeypatch):
         popen.return_value.communicate.return_value = ('', 'bad file')
         monkeypatch.setattr('os.chdir', lambda x: None)
 
-        diffs = collect_diffs_for_files('/some/path', versions="HEAD",
+        diffs = cover.collect_diffs_for_files('/some/path', versions="HEAD",
                                         source_files=['foo'],
                                         context_lines=5)
-        with pytest.raises(DiffCollectionFailed) as excinfo:
+        with pytest.raises(cover.DiffCollectionFailed) as excinfo:
             for diff in diffs:
                 pass
         expected_msg = ('Unable to collect diffs for file /some/path/foo: '
@@ -263,7 +255,7 @@ def test_collecting_diff_files(monkeypatch):
             'foo.py\n.ignored-file\nbar.py\n', '')
         monkeypatch.setattr('os.chdir', lambda x: None)
 
-        diff_files = collect_diff_files(fake_project, 'HEAD')
+        diff_files = cover.collect_diff_files(fake_project, 'HEAD')
         assert list(diff_files) == ['foo.py', 'bar.py']
 
 
@@ -272,8 +264,8 @@ def test_fail_collecting_diff_files(monkeypatch):
         popen.return_value.communicate.return_value = ('foo.py', 'no file')
         monkeypatch.setattr('os.chdir', lambda x: None)
         
-        diff_files = collect_diff_files('/some/path', 'HEAD')
-        with pytest.raises(DiffCollectionFailed) as excinfo:
+        diff_files = cover.collect_diff_files('/some/path', 'HEAD')
+        with pytest.raises(cover.DiffCollectionFailed) as excinfo:
             for diff_file in diff_files:
                 pass
         expected_msg = ('Unable to find diff files to examine in '
@@ -283,13 +275,13 @@ def test_fail_collecting_diff_files(monkeypatch):
 
 def test_determine_coverage_file_name():
     filename = "relative/path/to/file.py"
-    module = SourceModule(filename, lines=[])
+    module = cover.SourceModule(filename, lines=[])
     assert module.cover_file == 'relative_path_to_file_py.html'
 
 
 def test_update_status_line():
-    line = SourceLine(10, is_context=False)
-    module = SourceModule('foo', [line])
+    line = cover.SourceLine(10, is_context=False)
+    module = cover.SourceModule('foo', [line])
     module.update_line_status(10, 'pln')
     assert line.status == '   '
     module.update_line_status(10, 'stm run')
@@ -301,8 +293,8 @@ def test_update_status_line():
 
 
 def test_fail_update_status_no_matching_line():
-    line = SourceLine(10, is_context=False)
-    module = SourceModule('foo', [line])
+    line = cover.SourceLine(10, is_context=False)
+    module = cover.SourceModule('foo', [line])
     module.update_line_status(12, 'stm run')
     assert line.status == '???'
 
@@ -313,8 +305,8 @@ def test_check_coverage_no_lines():
 <p id="n2" class="pln"><a href="#n2">2</a></p>
 <p id="n3" class="pln"><a href="#n3">3</a></p>
 """.splitlines()
-    module = SourceModule('foo.py', [])
-    check_coverage_status(coverage_info, module)
+    module = cover.SourceModule('foo.py', [])
+    cover.check_coverage_status(coverage_info, module)
     assert module.lines == []
 
 
@@ -331,13 +323,15 @@ def test_coverage_status_collection():
             </td>
             <td class="text">
 """.splitlines()
-    non_executable_line = SourceLine(63)
-    partial_covered_line = SourceLine(64, is_context=False)
-    missing_line = SourceLine(65, is_context=False)
-    covered_line = SourceLine(66, is_context=False)
-    module = SourceModule('foo.py', [non_executable_line, partial_covered_line,
-                                     missing_line, covered_line])
-    check_coverage_status(coverage_info, module)
+    non_executable_line = cover.SourceLine(63)
+    partial_covered_line = cover.SourceLine(64, is_context=False)
+    missing_line = cover.SourceLine(65, is_context=False)
+    covered_line = cover.SourceLine(66, is_context=False)
+    module = cover.SourceModule('foo.py', [non_executable_line,
+                                           partial_covered_line,
+                                           missing_line,
+                                           covered_line])
+    cover.check_coverage_status(coverage_info, module)
     assert non_executable_line.status == '   '
     assert partial_covered_line.status == 'par'
     assert missing_line.status == 'mis'
@@ -346,8 +340,8 @@ def test_coverage_status_collection():
 
 
 def test_missing_coverage_file(fake_cover_project):
-    module = SourceModule('foo.py', [])
-    check_coverage_file(fake_cover_project, module)
+    module = cover.SourceModule('foo.py', [])
+    cover.check_coverage_file(fake_cover_project, module)
     assert not module.have_report
 
 
@@ -361,8 +355,8 @@ def test_checking_coverage_file(monkeypatch):
             </td>
             <td class="text">
 """.splitlines()
-    line = SourceLine(2, is_context=False)
-    module = SourceModule('foo.py', [line])
+    line = cover.SourceLine(2, is_context=False)
+    module = cover.SourceModule('foo.py', [line])
 
     def is_a_file(filename):
         return True
@@ -371,95 +365,96 @@ def test_checking_coverage_file(monkeypatch):
     with mock.patch('__builtin__.open',
                     mock.mock_open(), create=True) as mock_open:
         mock_open.return_value.readlines.return_value = coverage_info
-        check_coverage_file('.', module)
+        cover.check_coverage_file('.', module)
     assert module.have_report
     assert line.status == 'run'
     assert module.coverage == '5%'
 
 
 def test_report_non_coverage_files():
-    module = SourceModule('path/foo.py', [])
+    module = cover.SourceModule('path/foo.py', [])
     assert module.report() == 'path/foo.py (No coverage data)\n'
 
 
 def test_report_no_no_added_lines():
-    module = SourceModule('path/foo.py', [])
+    module = cover.SourceModule('path/foo.py', [])
     module.have_report = True
     assert module.report() == 'path/foo.py (No added/changed lines)\n'
 
-    lines = [SourceLine(10, is_context=True), SourceLine(12, is_context=True)]
-    module = SourceModule('deleted_lines_file', lines)
+    lines = [cover.SourceLine(10, is_context=True),
+             cover.SourceLine(12, is_context=True)]
+    module = cover.SourceModule('deleted_lines_file', lines)
     module.have_report = True
     assert module.report() == 'deleted_lines_file (No added/changed lines)\n'
 
 
 def test_report_one_line():
-    line = SourceLine(10, is_context=False, code='    x = 1')
-    module = SourceModule('path/foo.py', [line])
+    line = cover.SourceLine(10, is_context=False, code='    x = 1')
+    module = cover.SourceModule('path/foo.py', [line])
     module.have_report = True
     module.coverage = '100%'
     line.status = 'run'
     expected = """path/foo.py (run=1, mis=0, par=0, ign=0) 100%
-   10 run +    x = 1
+   10 run +     x = 1
 """
     assert module.report() == expected
 
 
 def test_report_multiple_blocks():
-    lines = [SourceLine(10, is_context=False, code='    x = 1'),
-             SourceLine(11, is_context=False, code='    y = 2'),
-             SourceLine(20, is_context=False, code='    z = 3'),
-             SourceLine(21, is_context=False, code='    for i in range(5)')]
+    lines = [cover.SourceLine(10, is_context=False, code='x = 1'),
+             cover.SourceLine(11, is_context=False, code='y = 2'),
+             cover.SourceLine(20, is_context=False, code='z = 3'),
+             cover.SourceLine(21, is_context=False, code='for i in [1, 2]')]
     lines[0].status = 'run'
     lines[1].status = 'mis'
     lines[2].status = 'par'
     lines[3].status = '   '
-    module = SourceModule('path/foo.py', lines)
+    module = cover.SourceModule('path/foo.py', lines)
     module.have_report = True
     module.coverage = '50%'
 
     expected = """path/foo.py (run=1, mis=1, par=1, ign=1) 50%
-   10 run +    x = 1
-   11 mis +    y = 2
+   10 run + x = 1
+   11 mis + y = 2
 
-   20 par +    z = 3
-   21     +    for i in range(5)
+   20 par + z = 3
+   21     + for i in [1, 2]
 """
     assert module.report() == expected
 
 
 def test_argument_parse_which(fake_cover_project):
-    parser = setup_parser()
-    args = validate(parser, [fake_cover_project])
+    parser = cover.setup_parser()
+    args = cover.validate(parser, [fake_cover_project])
     assert args.commits == 'HEAD'
-    args = validate(parser, ['-w', 'working', fake_cover_project])
+    args = cover.validate(parser, ['-w', 'working', fake_cover_project])
     assert args.commits == 'HEAD'
-    args = validate(parser, ['-w', 'committed', fake_cover_project])
+    args = cover.validate(parser, ['-w', 'committed', fake_cover_project])
     assert args.commits == 'HEAD^..HEAD'
-    args = validate(parser, ['-w', 'HEAD~5..HEAD~3', fake_cover_project])
+    args = cover.validate(parser, ['-w', 'HEAD~5..HEAD~3', fake_cover_project])
     assert args.commits == 'HEAD~5..HEAD~3'
 
 
 def test_argument_parse_context(fake_cover_project):
-    parser = setup_parser()
-    args = validate(parser, ['-c', '10', fake_cover_project])
+    parser = cover.setup_parser()
+    args = cover.validate(parser, ['-c', '10', fake_cover_project])
     assert args.context == 10
 
 
 def test_validate_directory(fake_cover_project):
-    parser = setup_parser()
-    assert validate(parser, [fake_cover_project])
+    parser = cover.setup_parser()
+    assert cover.validate(parser, [fake_cover_project])
 
 
 def test_validate_no_coverage_area(fake_project):
-    parser = setup_parser()
+    parser = cover.setup_parser()
     with pytest.raises(SystemExit) as excinfo:
-        validate(parser, [fake_project])
+        cover.validate(parser, [fake_project])
     assert str(excinfo.value) == '2'
 
 
 def test_validate_no_directory():
-    parser = setup_parser()
+    parser = cover.setup_parser()
     with pytest.raises(SystemExit) as excinfo:
-        validate(parser, ['bogus-dir'])
+        cover.validate(parser, ['bogus-dir'])
     assert str(excinfo.value) == '2'

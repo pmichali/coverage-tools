@@ -115,10 +115,9 @@ class SourceModule(object):
         for line in self.lines:
             if last_line and line.line_number != (last_line + 1):
                 output += "\n"
-            output += "{:5d} {} {}{}\n".format(line.line_number,
-                                               line.status,
-                                               ' ' if line.is_context else '+',
-                                               line.code)
+            output += "{:5d} {} {} {}\n".format(
+                line.line_number, line.status,
+                ' ' if line.is_context else '+', line.code)
             last_line = line.line_number
         return output
 
