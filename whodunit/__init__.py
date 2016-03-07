@@ -79,7 +79,7 @@ title_re = re.compile(r'\s*<title>Coverage for ([^:]+):\s+(\d+)%<\/title>')
 source_re = re.compile(r'<p id="n(\d+)" class="stm (mis|par)')
 end_re = re.compile(r'\s*<td class="text">')
 
-__version__ = "0.1"
+__version__ = "0.2"
 
 class BadRecordException(Exception):
     pass
@@ -553,6 +553,3 @@ def setup_parser():
                              "Default='*', which includes hidden files")
     parser.add_argument(dest='root', metavar='file-or-dir')
     return parser
-
-if __name__ == "__main__":
-    main()

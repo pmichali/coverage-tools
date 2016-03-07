@@ -4,5 +4,5 @@
 """whodunit.__main__: executed when whodunit directory is called as script."""
 
 
-from .whodunit import main
+from whodunit import main
 main()
