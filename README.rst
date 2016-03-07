@@ -13,7 +13,7 @@ whodunit can identify who is the author/committer for lines in a file or
 a tree of files, starting at some directory. For example, from the top of a
 project tree, you can enter::
 
-    python whodunit.py /opt/stack/neutron/neutron
+    whodunit /opt/stack/neutron/neutron
 
     /opt/stack/neutron-lib/neutron_lib/
 
@@ -98,7 +98,7 @@ The filter is forced to "*", and details are implied in the output.
 
 For example::
 
-    python whodunit.py -s cover /opt/stack/networking-cisco
+    whodunit -s cover /opt/stack/networking-cisco
 
     routerrole.py (Bob Betatester)
         a238bf6b          54 Bob Betatester            2015-10-13
