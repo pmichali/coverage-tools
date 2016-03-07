@@ -43,6 +43,7 @@ setup(
     long_description=long_descr,
     author="Paul Michali",
     author_email="pc@michali.net",
+    url="https://github.com/pmichali/whodunit",
     license="Apache Software License",
     platforms='any',
     tests_require=['pytest', 'mock'],
