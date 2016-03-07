@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
 import whodunit
 
 
@@ -69,9 +70,9 @@ def fake_cover_project(request):
     os.mkdir('cover')
     os.chdir(cwd)
 
-    def fin():
+    def teardown():
         shutil.rmtree(cover_project_area)
-    request.addfinalizer(fin)
+    request.addfinalizer(teardown)
     return cover_project_area
 
 
@@ -79,10 +80,20 @@ def fake_cover_project(request):
 def fake_project(request):
     project_area = tempfile.mkdtemp()
 
-    def fin():
+    def teardown():
         shutil.rmtree(project_area)
-    request.addfinalizer(fin)
+    request.addfinalizer(teardown)
     return project_area
+
+
+@pytest.fixture()
+def dummy_file(request):
+    file_handle, name = tempfile.mkstemp()
+
+    def teardown():
+        os.unlink(name)
+    request.addfinalizer(teardown)
+    return name
 
 
 def test_no_filter_for_line_ranges():
@@ -517,16 +528,16 @@ def test_validate_with_directory():
     assert args.sort_by == 'date'
 
 
-def test_validate_with_file():
+def test_validate_with_file(dummy_file):
     parser = whodunit.setup_parser()
-    args = whodunit.validate(parser, ['-s', 'size', './test_whodunit.py'])
+    args = whodunit.validate(parser, ['-s', 'size', dummy_file])
     assert args.sort_by == 'size'
 
 
-def test_fail_validate_cover_not_directory():
+def test_fail_validate_cover_not_directory(dummy_file):
     parser = whodunit.setup_parser()
     with pytest.raises(SystemExit) as excinfo:
-        whodunit.validate(parser, ['-s', 'cover', './test_whodunit.py'])
+        whodunit.validate(parser, ['-s', 'cover', dummy_file])
     assert str(excinfo.value) == '2'
 
 
@@ -581,9 +592,9 @@ def test_build_date_owner():
     assert isinstance(owner, whodunit.DateOwners)
 
 
-def test_build_size_owner():
+def test_build_size_owner(dummy_file):
     parser = whodunit.setup_parser()
-    args = whodunit.validate(parser, ['-s', 'size', './test_whodunit.py'])
+    args = whodunit.validate(parser, ['-s', 'size', dummy_file])
     owner = whodunit.build_owner(args)
     assert isinstance(owner, whodunit.SizeOwners)
 

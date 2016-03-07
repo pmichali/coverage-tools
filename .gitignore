@@ -1,5 +1,12 @@
 # Compiled python modules.
 *.pyc
+*~
+whodunit/*~
+tests/*~
+
+.cache/
+.eggs/
+build/
 
 # Setuptools distribution folder.
 /dist/

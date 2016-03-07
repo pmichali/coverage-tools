@@ -5,8 +5,8 @@ This helps identify the "owners" of lines in project files, with the intention
 to assist in code coverage resolution (although can be used for other nefarious
 purposes :).
 
-Usage - Ownership Detection
----------------------------
+Usage A: Ownership Detection
+----------------------------
 
 In a git repo, you may want to know who can help fix coverage issues. Here,
 whodunit can identify who is the author/committer for lines in a file or
@@ -84,8 +84,8 @@ individual file (tracked by git), and it will produce a report for that
 file.
 
 
-Usage - Coverage Ownership
---------------------------
+Usage A: Coverage Ownership
+---------------------------
 
 If you have run a coverage test in the repo, and have a cover directory
 with coverage reports on the repo files, you can use whodunit to provide
